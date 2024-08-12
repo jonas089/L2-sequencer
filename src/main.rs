@@ -15,7 +15,7 @@ use state::server::{InMemoryBlockStore, InMemoryConsensus, InMemoryTransactionPo
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use types::{BlockCommitment, ConsensusCommitment, GenericTransactionData};
 struct InMemoryServerState {
     block_state: Arc<Mutex<InMemoryBlockStore>>,
@@ -25,13 +25,26 @@ struct InMemoryServerState {
 
 async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
     // todo: synchronize Blocks with other nodes
-    // fetch if the height is > this nodes
+    // fetch if the height is > this node's
     // verify the signatures and threshold
     // store valid blocks
 }
 
 async fn consensus_loop(database: Arc<Mutex<InMemoryServerState>>) {
-    // todo: implement
+    let start = SystemTime::now();
+    let since_the_epoch = start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+    let unix_timestamp = since_the_epoch.as_secs() as u32;
+    let database_lock = database.lock().unwrap();
+    let block_state_lock = database_lock.block_state.lock().unwrap();
+    let last_block_unix_timestamp = block_state_lock
+        .get_block_by_height(block_state_lock.height)
+        .timestamp;
+    if unix_timestamp > (last_block_unix_timestamp + config::consensus::accumulation_phase_duration)
+    {
+        // commit to consensus
+    }
 }
 #[tokio::main]
 async fn main() {

@@ -6,12 +6,14 @@ use crate::types::{
 use std::collections::HashMap;
 
 pub struct InMemoryBlockStore {
+    pub height: u32,
     pub blocks: HashMap<u32, Block>,
 }
 
 impl InMemoryBlockStore {
     pub fn empty() -> Self {
         Self {
+            height: 0,
             blocks: HashMap::new(),
         }
     }
@@ -24,10 +26,12 @@ impl InMemoryBlockStore {
                 transactions: vec![],
                 commitments: vec![],
             },
-        )
+        );
+        self.height += 1;
     }
     pub fn insert_block(&mut self, height: u32, block: Block) {
         self.blocks.insert(height, block);
+        self.height += 1;
     }
     pub fn get_block_by_height(&self, height: u32) -> &Block {
         self.blocks.get(&height).expect("Failed to get Block")
