@@ -7,7 +7,8 @@ use axum::routing::post;
 use axum::Json;
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use colored::*;
-use config::consensus::{v1_sk_deserialized, v1_vk_deserialized};
+use config::consensus::{consensus_threshold, v1_sk_deserialized, v1_vk_deserialized};
+use consensus::logic::evaluate_commitments;
 use crypto::ecdsa::Keypair;
 use indicatif::ProgressBar;
 use reqwest::Client;
@@ -16,7 +17,9 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use types::{BlockCommitment, ConsensusCommitment, GenericTransactionData};
+use types::{
+    Block, BlockCommitment, ConsensusCommitment, GenericPublicKey, GenericTransactionData,
+};
 struct InMemoryServerState {
     block_state: Arc<Mutex<InMemoryBlockStore>>,
     pool_state: Arc<Mutex<InMemoryTransactionPool>>,
@@ -51,6 +54,12 @@ async fn consensus_loop(database: Arc<Mutex<InMemoryServerState>>) {
             + config::consensus::accumulation_phase_duration
             + config::consensus::commitment_phase_duration)
     {
+        let consensus_state_lock = database_lock.consensus_state.lock().unwrap();
+        if consensus_state_lock.commitments.len() as u32 > consensus_threshold {
+            let round_winner: GenericPublicKey =
+                evaluate_commitments(consensus_state_lock.commitments.clone());
+            // todo: gossip the round winner to other validators
+        }
         // conclude the commitment phase, if sufficiently many commitments were received
     }
 }
@@ -87,6 +96,7 @@ async fn main() {
         .route("/get/commitments", get(get_commitments))
         .route("/schedule", post(schedule))
         .route("/commit", post(commit))
+        .route("/propose", post(propose))
         .layer(DefaultBodyLimit::max(10000000))
         .layer(Extension(shared_state));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
@@ -121,6 +131,19 @@ async fn commit(
         .lock()
         .unwrap()
         .insert_commitment(commitment);
+    success_response
+}
+
+async fn propose(
+    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
+    Json(proposal): Json<Block>,
+) -> String {
+    let state = shared_state.lock().unwrap();
+    let success_response = format!("Block was accepted: {:?}", &proposal).to_string();
+    let pending_response = format!("Block is pending commitments: {:?}", &proposal).to_string();
+
+    todo!("Finish implementing this route");
+
     success_response
 }
 

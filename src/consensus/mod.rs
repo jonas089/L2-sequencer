@@ -1,2 +1,2 @@
-mod logic;
-mod zrand;
+pub mod logic;
+pub mod zrand;
