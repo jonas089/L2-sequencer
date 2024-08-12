@@ -7,6 +7,8 @@ use axum::routing::post;
 use axum::Json;
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use colored::*;
+use config::consensus::{v1_sk_deserialized, v1_vk_deserialized};
+use crypto::ecdsa::Keypair;
 use indicatif::ProgressBar;
 use reqwest::Client;
 use state::server::{InMemoryBlockStore, InMemoryConsensus, InMemoryTransactionPool};
@@ -14,7 +16,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Duration;
-use types::GenericTransactionData;
+use types::{BlockCommitment, ConsensusCommitment, GenericTransactionData};
 struct InMemoryServerState {
     block_state: Arc<Mutex<InMemoryBlockStore>>,
     pool_state: Arc<Mutex<InMemoryTransactionPool>>,
@@ -61,7 +63,9 @@ async fn main() {
     tokio::spawn(consensus_loop(Arc::clone(&shared_state)));
     let api = Router::new()
         .route("/get/pool", get(get_pool))
+        .route("/get/commitments", get(get_commitments))
         .route("/schedule", post(schedule))
+        .route("/commit", post(commit))
         .layer(DefaultBodyLimit::max(10000000))
         .layer(Extension(shared_state));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
@@ -85,10 +89,32 @@ async fn schedule(
     success_response
 }
 
+async fn commit(
+    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
+    Json(commitment): Json<ConsensusCommitment>,
+) -> String {
+    let state = shared_state.lock().unwrap();
+    let success_response = format!("Commitment was accepted: {:?}", &commitment).to_string();
+    state
+        .consensus_state
+        .lock()
+        .unwrap()
+        .insert_commitment(commitment);
+    success_response
+}
+
 async fn get_pool(Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>) -> String {
     let state = shared_state.lock().unwrap();
     let pool_state = state.pool_state.lock().unwrap();
     format!("{:?}", pool_state.transactions)
+}
+
+async fn get_commitments(
+    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
+) -> String {
+    let state = shared_state.lock().unwrap();
+    let consensus_state = state.consensus_state.lock().unwrap();
+    format!("{:?}", consensus_state.commitments)
 }
 
 #[tokio::test]
@@ -106,4 +132,12 @@ async fn test_schedule_transaction() {
         response.text().await.unwrap(),
         "Transaction is being sequenced: [1, 2, 3, 4, 5]"
     )
+}
+
+#[tokio::test]
+async fn test_commit() {
+    let keypair: Keypair = Keypair {
+        sk: v1_sk_deserialized(),
+        vk: v1_vk_deserialized(),
+    };
 }

@@ -8,8 +8,8 @@ use k256::{
 use rand_core::OsRng;
 
 pub struct Keypair {
-    sk: SigningKey,
-    vk: VerifyingKey,
+    pub sk: SigningKey,
+    pub vk: VerifyingKey,
 }
 impl Keypair {
     pub fn new() -> Self {
