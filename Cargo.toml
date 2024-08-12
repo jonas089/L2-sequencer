@@ -8,3 +8,4 @@ k256 = "0.13.3"
 rand_core = "0.6.4"
 prover = { git = "https://github.com/jonas089/PoRD" }
 zk-logic = { git = "https://github.com/jonas089/PoRD" }
+risc0-zkvm = { version = "0.21.0", default-features = false }

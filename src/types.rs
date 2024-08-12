@@ -1,7 +1,7 @@
-pub type Signature = Vec<u8>;
+pub type GenericSignature = Vec<u8>;
 pub type Timestamp = u32;
-pub type TransactionData = Vec<u8>;
-pub type PublicKey = Vec<u8>;
+pub type GenericTransactionData = Vec<u8>;
+pub type GenericPublicKey = Vec<u8>;
 pub struct Proposal {
     pub height: u32,
     pub transactions: Vec<Transaction>,
@@ -10,14 +10,14 @@ pub struct Proposal {
 }
 
 pub struct Transaction {
-    pub data: TransactionData,
+    pub data: GenericTransactionData,
     pub timestamp: Timestamp,
 }
 
 pub struct Commitment {
     // a signature over the serialized
     // transactions in the Block
-    signature: Signature,
-    validator: PublicKey,
-    timestamp: Timestamp,
+    pub signature: GenericSignature,
+    pub validator: GenericPublicKey,
+    pub timestamp: Timestamp,
 }

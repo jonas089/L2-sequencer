@@ -426,9 +426,9 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "cpufeatures"
-version = "0.2.12"
+version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53fe5e26ff1b7aef8bca9c6080520cfb8d9333c7568e1829cef191a9723e5504"
+checksum = "51e852e6dc9a5bed1fae92dd2375037bf2b768725bf3be87811edee3249d09ad"
 dependencies = [
  "libc",
 ]
@@ -1099,6 +1099,7 @@ dependencies = [
  "k256",
  "prover",
  "rand_core",
+ "risc0-zkvm",
  "zk-logic",
 ]
 
@@ -1195,7 +1196,7 @@ dependencies = [
 [[package]]
 name = "prover"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/PoRD#f9f7532fa3274684532a4b6acc9b94fd65b4af4f"
+source = "git+https://github.com/jonas089/PoRD#f0b23c0672b32d498e631f4953c9ee94d1f894a3"
 dependencies = [
  "rand",
  "risc0-zkvm",
@@ -2340,7 +2341,7 @@ dependencies = [
 [[package]]
 name = "zk-logic"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/PoRD#f9f7532fa3274684532a4b6acc9b94fd65b4af4f"
+source = "git+https://github.com/jonas089/PoRD#f0b23c0672b32d498e631f4953c9ee94d1f894a3"
 dependencies = [
  "num-bigint",
  "serde",
@@ -2350,7 +2351,7 @@ dependencies = [
 [[package]]
 name = "zk-methods"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/PoRD#f9f7532fa3274684532a4b6acc9b94fd65b4af4f"
+source = "git+https://github.com/jonas089/PoRD#f0b23c0672b32d498e631f4953c9ee94d1f894a3"
 dependencies = [
  "risc0-build",
 ]

@@ -1,4 +1,5 @@
 mod config;
+mod consensus;
 mod crypto;
 mod state;
 mod types;
