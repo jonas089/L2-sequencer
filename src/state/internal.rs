@@ -1,5 +1,4 @@
-pub enum ServerState {
-    Receiving,
-    Proposing,
-    Validating,
+pub enum ConsensusPhase {
+    Committing,
+    Deciding,
 }
