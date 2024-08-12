@@ -39,13 +39,15 @@ impl InMemoryBlockStore {
 }
 
 pub struct InMemoryTransactionPool {
+    pub height: u32,
     pub size: u32,
     pub transactions: HashMap<u32, GenericTransactionData>,
 }
 
 impl InMemoryTransactionPool {
-    pub fn empty() -> Self {
+    pub fn empty(height: u32) -> Self {
         Self {
+            height,
             size: 0,
             transactions: HashMap::new(),
         }
@@ -59,27 +61,31 @@ impl InMemoryTransactionPool {
             .get(&index)
             .expect("Failed to get Transaction")
     }
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self, height: u32) {
+        self.height = height;
         self.size = 0;
         self.transactions = HashMap::new();
     }
 }
 
 pub struct InMemoryConsensus {
+    pub height: u32,
     pub validators: Vec<VerifyingKey>,
     pub commitments: Vec<ConsensusCommitment>,
 }
 
 impl InMemoryConsensus {
-    pub fn empty() -> Self {
+    pub fn empty(height: u32) -> Self {
         Self {
+            height,
             validators: Vec::new(),
             commitments: Vec::new(),
         }
     }
-    pub fn empty_with_default_validators() -> InMemoryConsensus {
+    pub fn empty_with_default_validators(height: u32) -> InMemoryConsensus {
         use crate::config::consensus::{v1_vk_deserialized, v2_vk_deserialized};
         Self {
+            height,
             validators: vec![v1_vk_deserialized(), v2_vk_deserialized()],
             commitments: Vec::new(),
         }

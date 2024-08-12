@@ -28,6 +28,7 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
     // fetch if the height is > this node's
     // verify the signatures and threshold
     // store valid blocks
+    // when a block is found and synchronized the pool_state and consensus_state are rest for height += 1
 }
 
 async fn consensus_loop(database: Arc<Mutex<InMemoryServerState>>) {
@@ -44,6 +45,13 @@ async fn consensus_loop(database: Arc<Mutex<InMemoryServerState>>) {
     if unix_timestamp > (last_block_unix_timestamp + config::consensus::accumulation_phase_duration)
     {
         // commit to consensus
+    }
+    if unix_timestamp
+        > (last_block_unix_timestamp
+            + config::consensus::accumulation_phase_duration
+            + config::consensus::commitment_phase_duration)
+    {
+        // conclude the commitment phase, if sufficiently many commitments were received
     }
 }
 #[tokio::main]
@@ -65,8 +73,8 @@ async fn main() {
             .magenta()
     );
     let block_state: InMemoryBlockStore = InMemoryBlockStore::empty();
-    let pool_state: InMemoryTransactionPool = InMemoryTransactionPool::empty();
-    let consensus_state: InMemoryConsensus = InMemoryConsensus::empty();
+    let pool_state: InMemoryTransactionPool = InMemoryTransactionPool::empty(0);
+    let consensus_state: InMemoryConsensus = InMemoryConsensus::empty(0);
     let shared_state: Arc<Mutex<InMemoryServerState>> = Arc::new(Mutex::new(InMemoryServerState {
         block_state: Arc::new(Mutex::new(block_state)),
         pool_state: Arc::new(Mutex::new(pool_state)),
