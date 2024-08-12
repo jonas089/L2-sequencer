@@ -62,3 +62,19 @@ fn test_generate_and_verify_ecdsa_signature_using_secp256k1_curve() {
         .verify(&arbitrary_data, &signature)
         .expect("Failed to verify signature");
 }
+
+#[test]
+fn test_generate_validator_keys_for_basic_e2e_setup() {
+    let v1_keypair = Keypair::new();
+    let v2_keypair = Keypair::new();
+    println!(
+        "V1 sk: {:?}, V1 vk: {:?}",
+        v1_keypair.serialize_sk(),
+        v1_keypair.serialize_vk()
+    );
+    println!(
+        "V2 sk: {:?}, V2 vk: {:?}",
+        v2_keypair.serialize_sk(),
+        v2_keypair.serialize_vk()
+    );
+}

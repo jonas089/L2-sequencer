@@ -1,4 +1,4 @@
-use crate::types::{Commitment, GenericTransactionData, Proposal};
+use crate::types::{Commitment, GenericTransactionData, Proposal, Timestamp};
 use std::collections::HashMap;
 type Block = Proposal;
 
@@ -7,6 +7,22 @@ pub struct InMemoryBlockStore {
 }
 
 impl InMemoryBlockStore {
+    pub fn empty() -> Self {
+        Self {
+            blocks: HashMap::new(),
+        }
+    }
+    pub fn trigger_genesis(&mut self, timestamp: Timestamp) {
+        self.insert_block(
+            0u32,
+            Block {
+                timestamp,
+                height: 0,
+                transactions: vec![],
+                commitments: vec![],
+            },
+        )
+    }
     pub fn insert_block(&mut self, height: u32, block: Block) {
         self.blocks.insert(height, block);
     }
@@ -21,6 +37,12 @@ pub struct InMemoryTransactionPool {
 }
 
 impl InMemoryTransactionPool {
+    pub fn empty() -> Self {
+        Self {
+            size: 0,
+            transactions: HashMap::new(),
+        }
+    }
     pub fn insert_transaction(&mut self, transaction: GenericTransactionData) {
         self.transactions.insert(self.size, transaction);
         self.size += 1;
@@ -34,4 +56,12 @@ impl InMemoryTransactionPool {
 
 pub struct InMemoryConsensus {
     pub commitments: Vec<Commitment>,
+}
+
+impl InMemoryConsensus {
+    pub fn empty() -> Self {
+        Self {
+            commitments: Vec::new(),
+        }
+    }
 }

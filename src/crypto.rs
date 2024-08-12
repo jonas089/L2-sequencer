@@ -1,1 +1,1 @@
-mod ecdsa;
+pub mod ecdsa;
