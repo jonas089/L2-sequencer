@@ -52,6 +52,10 @@ impl InMemoryTransactionPool {
             .get(&index)
             .expect("Failed to get Transaction")
     }
+    pub fn reset(&mut self) {
+        self.size = 0;
+        self.transactions = HashMap::new();
+    }
 }
 
 pub struct InMemoryConsensus {
@@ -63,5 +67,11 @@ impl InMemoryConsensus {
         Self {
             commitments: Vec::new(),
         }
+    }
+    pub fn insert_commitment(&mut self, commitment: Commitment) {
+        self.commitments.push(commitment);
+    }
+    pub fn reset(&mut self) {
+        self.commitments = Vec::new();
     }
 }
