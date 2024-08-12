@@ -1,1 +1,1 @@
-mod consensus;
+pub mod consensus;

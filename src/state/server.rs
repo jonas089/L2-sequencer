@@ -1,3 +1,5 @@
+use k256::ecdsa::VerifyingKey;
+
 use crate::types::{Commitment, GenericTransactionData, Proposal, Timestamp};
 use std::collections::HashMap;
 type Block = Proposal;
@@ -59,12 +61,21 @@ impl InMemoryTransactionPool {
 }
 
 pub struct InMemoryConsensus {
+    pub validators: Vec<VerifyingKey>,
     pub commitments: Vec<Commitment>,
 }
 
 impl InMemoryConsensus {
     pub fn empty() -> Self {
         Self {
+            validators: Vec::new(),
+            commitments: Vec::new(),
+        }
+    }
+    pub fn empty_with_default_validators() -> InMemoryConsensus {
+        use crate::config::consensus::{v1_vk_deserialized, v2_vk_deserialized};
+        Self {
+            validators: vec![v1_vk_deserialized(), v2_vk_deserialized()],
             commitments: Vec::new(),
         }
     }

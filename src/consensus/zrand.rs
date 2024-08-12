@@ -1,5 +1,4 @@
 // Zk randomness for Sequencer Consensus
-
 use prover::ZK_RAND_ID;
 use risc0_zkvm::Receipt;
 use zk_logic::random_bytes_to_int;

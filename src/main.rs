@@ -12,8 +12,9 @@ use reqwest::Client;
 use state::server::{InMemoryBlockStore, InMemoryConsensus, InMemoryTransactionPool};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::thread::sleep;
+use std::time::Duration;
 use types::GenericTransactionData;
-
 struct InMemoryServerState {
     block_state: Arc<Mutex<InMemoryBlockStore>>,
     pool_state: Arc<Mutex<InMemoryTransactionPool>>,
@@ -25,7 +26,10 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
     // fetch if the height is > this nodes
     // verify the signatures and threshold
     // store valid blocks
-    // loop {}
+}
+
+async fn consensus_loop(database: Arc<Mutex<InMemoryServerState>>) {
+    // todo: implement
 }
 #[tokio::main]
 async fn main() {
@@ -54,6 +58,7 @@ async fn main() {
         consensus_state: Arc::new(Mutex::new(consensus_state)),
     }));
     tokio::spawn(synchronization_loop(Arc::clone(&shared_state)));
+    tokio::spawn(consensus_loop(Arc::clone(&shared_state)));
     let api = Router::new()
         .route("/get/pool", get(get_pool))
         .route("/schedule", post(schedule))

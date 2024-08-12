@@ -1,4 +1,5 @@
-use crate::crypto::ecdsa::deserialize_sk;
+use crate::crypto::ecdsa::{deserialize_sk, deserialize_vk};
+use k256::ecdsa::{SigningKey, VerifyingKey};
 
 // time before a new block is created, from a block's timestamp onwards
 // specified in seconds
@@ -26,3 +27,19 @@ pub const test_v2_vk: &'static [u8] = &[
     2, 117, 224, 184, 15, 207, 177, 48, 93, 85, 52, 230, 31, 123, 67, 27, 47, 58, 245, 197, 215,
     189, 128, 192, 14, 203, 86, 139, 85, 234, 68, 42, 148,
 ];
+
+pub fn v1_sk_deserialized() -> SigningKey {
+    deserialize_sk(&test_v1_sk)
+}
+
+pub fn v2_sk_deserialized() -> SigningKey {
+    deserialize_sk(&test_v2_sk)
+}
+
+pub fn v1_vk_deserialized() -> VerifyingKey {
+    deserialize_vk(&test_v1_vk)
+}
+
+pub fn v2_vk_deserialized() -> VerifyingKey {
+    deserialize_vk(&test_v2_vk)
+}
