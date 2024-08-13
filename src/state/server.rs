@@ -36,7 +36,7 @@ impl InMemoryBlockStore {
         self.height += 1;
     }
     pub fn get_block_by_height(&self, height: u32) -> &Block {
-        self.blocks.get(&height).expect("Failed to get Block")
+        self.blocks.get(&(height - 1)).expect("Failed to get Block")
     }
 }
 

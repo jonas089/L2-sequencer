@@ -73,12 +73,14 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
 
         println!("Consensus Gossip Responses: {:?}", &consensus_gossip);
     }
+    let mut consensus_state_lock = state_lock.consensus_state.lock().await;
     if unix_timestamp
         > (last_block_unix_timestamp
             + config::consensus::ACCUMULATION_PHASE_DURATION
             + config::consensus::COMMITMENT_PHASE_DURATION)
+            // this is an issue, since this can include invalid commitments, todo: check the commitments first!
+        && consensus_state_lock.commitments.len() as u32 > CONSENSUS_THRESHOLD
     {
-        let mut consensus_state_lock = state_lock.consensus_state.lock().await;
         if consensus_state_lock.commitments.len() as u32 > CONSENSUS_THRESHOLD {
             let round_winner: GenericPublicKey =
                 evaluate_commitments(consensus_state_lock.commitments.clone());
@@ -104,7 +106,8 @@ async fn main() {
             .italic()
             .magenta()
     );
-    let block_state: InMemoryBlockStore = InMemoryBlockStore::empty();
+    let mut block_state: InMemoryBlockStore = InMemoryBlockStore::empty();
+    block_state.trigger_genesis(0u32);
     let pool_state: InMemoryTransactionPool = InMemoryTransactionPool::empty(0);
     let consensus_state: InMemoryConsensus = InMemoryConsensus::empty_with_default_validators(0);
     let local_gossipper: Gossipper = Gossipper {
