@@ -4,6 +4,7 @@ mod crypto;
 mod gossipper;
 mod state;
 mod types;
+use axum::extract::Path;
 use axum::routing::post;
 use axum::Json;
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
@@ -124,6 +125,7 @@ async fn main() {
     let api = Router::new()
         .route("/get/pool", get(get_pool))
         .route("/get/commitments", get(get_commitments))
+        .route("/get/block/:height", get(get_block))
         .route("/schedule", post(schedule))
         .route("/commit", post(commit))
         .route("/propose", post(propose))
@@ -259,6 +261,15 @@ async fn get_commitments(
     let state = shared_state.lock().await;
     let consensus_state = state.consensus_state.lock().await;
     format!("{:?}", consensus_state.commitments)
+}
+
+async fn get_block(
+    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
+    Path(height): Path<u32>,
+) -> String {
+    let state = shared_state.lock().await;
+    let block_state = state.block_state.lock().await;
+    serde_json::to_string(&block_state.get_block_by_height(height)).unwrap()
 }
 
 #[tokio::test]
