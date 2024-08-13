@@ -43,5 +43,22 @@ To submit an example Transaction to both nodes, run:
 cargo test test_schedule_transactions
 ```
 
+# API Routes
+
+## Internal
+```rust
+        .route("/schedule", post(schedule))
+        .route("/commit", post(commit))
+        .route("/propose", post(propose))
+```
+## External
+```rust
+        .route("/get/pool", get(get_pool))
+        .route("/get/commitments", get(get_commitments))
+        .route("/get/block/:height", get(get_block))
+```
+
+To view a Block when running the example setup, request `127.0.0.1:8080/get/block/<id>`, or `127.0.0.1:8081/get/block/<id>`.
+
 ## Merkle Commitments
 TBD
