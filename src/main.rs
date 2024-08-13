@@ -18,7 +18,7 @@ use crypto::ecdsa::deserialize_vk;
 use gossipper::Gossipper;
 use k256::ecdsa::{signature::SignerMut, Signature};
 use prover::generate_random_number;
-use reqwest::Client;
+use reqwest::{Client, Response};
 use state::server::{InMemoryBlockStore, InMemoryConsensus, InMemoryTransactionPool};
 use std::{
     env,
@@ -46,21 +46,33 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
             if peer == &env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
                 continue;
             }
-            let response = gossipper
+            let response: Option<Response> = match gossipper
                 .client
                 .get(format!("http://{}{}{}", &peer, "/get/block/", next_height))
                 .timeout(Duration::from_secs(3))
                 .send()
                 .await
-                .unwrap();
-            let block_serialized = response.text().await.unwrap();
-            if block_serialized != "[Warning] Requested Block that does not exist".to_string() {
-                let block: Block = serde_json::from_str(&block_serialized).unwrap();
-                state_lock.block_state.insert_block(next_height - 1, block);
-                state_lock.consensus_state.height += 1;
-                state_lock.consensus_state.proposed = false;
-                state_lock.consensus_state.committed = false;
-                println!("{}", format!("{} Synchronized Block", "[Info]".green()));
+            {
+                Ok(response) => Some(response),
+                Err(_) => None,
+            };
+            match response {
+                Some(response) => {
+                    let block_serialized = response.text().await.unwrap();
+                    if block_serialized
+                        != "[Warning] Requested Block that does not exist".to_string()
+                    {
+                        let block: Block = serde_json::from_str(&block_serialized).unwrap();
+                        state_lock.block_state.insert_block(next_height - 1, block);
+                        state_lock.consensus_state.height += 1;
+                        state_lock.consensus_state.proposed = false;
+                        state_lock.consensus_state.committed = false;
+                        println!("{}", format!("{} Synchronized Block", "[Info]".green()));
+                    }
+                }
+                None => {
+                    println!("{}", format!("{} Resource is Busy", "[Warning]".yellow()))
+                }
             }
         }
     });

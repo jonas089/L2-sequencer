@@ -31,7 +31,6 @@ pub async fn commit(
     Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
     Json(commitment): Json<ConsensusCommitment>,
 ) -> String {
-    println!("Received Commitment: {:?}", &commitment.receipt.journal);
     let mut state = shared_state.lock().await;
     let success_response = format!("Commitment was accepted: {:?}", &commitment).to_string();
     state.consensus_state.insert_commitment(commitment);
@@ -72,7 +71,13 @@ pub async fn propose(
                         ) {
                             Ok(_) => commitment_count += 1,
                             Err(_) => {
-                                eprintln!("[Warning] Invalid signature, skipping commitment!")
+                                println!(
+                                    "{}",
+                                    format!(
+                                        "{} Invalid Commitment was Ignored",
+                                        "[Warning]".yellow()
+                                    )
+                                )
                             }
                         }
                     }
