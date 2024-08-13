@@ -33,7 +33,7 @@ cargo run
 in Terminal B
 
 This will start the Network and initiate the Block generation process:
-[example](https://github.com/jonas089/PoRD-sequencer/blob/master/resources/demo.png)
+![example](https://github.com/jonas089/PoRD-sequencer/blob/master/resources/demo.png)
 
 To submit an example Transaction to both nodes, run:
 
