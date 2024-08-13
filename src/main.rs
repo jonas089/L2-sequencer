@@ -315,16 +315,11 @@ async fn propose(
                         .consensus_state
                         .reinitialize(previous_block_height + 1);
                 } else if !is_signed {
-                    // sign the proposal
                     let mut local_sk = state_lock.consensus_state.local_signing_key.clone();
                     let block_bytes = proposal.to_bytes();
                     let signature: Signature = local_sk.sign(&block_bytes);
                     let signature_serialized: GenericSignature = signature.to_bytes().to_vec();
-                    //////////////////////////////////////////////////////
-                    //                  Todo: factor this out           //
-                    //////////////////////////////////////////////////////
                     let unix_timestamp = get_current_time();
-                    //////////////////////////////////////////////////////
                     let commitment = BlockCommitment {
                         signature: signature_serialized,
                         validator: state_lock
