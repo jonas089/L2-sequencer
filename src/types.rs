@@ -11,7 +11,7 @@ pub struct Block {
     pub height: u32,
     pub transactions: Vec<Transaction>,
     pub signature: Option<GenericSignature>,
-    pub commitments: Vec<BlockCommitment>,
+    pub commitments: Option<Vec<BlockCommitment>>,
     pub timestamp: Timestamp,
 }
 impl Block {
@@ -20,7 +20,7 @@ impl Block {
             height: self.height,
             transactions: self.transactions.clone(),
             signature: None,
-            commitments: self.commitments.clone(),
+            commitments: None,
             timestamp: self.timestamp,
         };
         bincode::serialize(&temp_block).unwrap()

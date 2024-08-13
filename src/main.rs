@@ -26,7 +26,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use types::{
     Block, BlockCommitment, ConsensusCommitment, GenericPublicKey, GenericSignature,
-    GenericTransactionData,
+    GenericTransactionData, Transaction,
 };
 struct InMemoryServerState {
     block_state: Arc<Mutex<InMemoryBlockStore>>,
@@ -55,7 +55,9 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
     let last_block_unix_timestamp = block_state_lock
         .get_block_by_current_height(block_state_lock.height)
         .timestamp;
-    let consensus_lock = state_lock.consensus_state.lock().await;
+    let mut consensus_lock = state_lock.consensus_state.lock().await;
+    let pool_state_lock = state_lock.pool_state.lock().await;
+    let local_gossipper = state_lock.local_gossipper.lock().await;
     if unix_timestamp > (last_block_unix_timestamp + config::consensus::ACCUMULATION_PHASE_DURATION)
     {
         // commit to consensus
@@ -71,20 +73,43 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
             .gossip_consensus_commitment(commitment)
             .await;
 
-        println!("Consensus Gossip Responses: {:?}", &consensus_gossip);
+        println!("[Info] Consensus Gossip Responses: {:?}", &consensus_gossip);
     }
-    let mut consensus_state_lock = state_lock.consensus_state.lock().await;
     if unix_timestamp
         > (last_block_unix_timestamp
             + config::consensus::ACCUMULATION_PHASE_DURATION
             + config::consensus::COMMITMENT_PHASE_DURATION)
             // this is an issue, since this can include invalid commitments, todo: check the commitments first!
-        && consensus_state_lock.commitments.len() as u32 > CONSENSUS_THRESHOLD
+        && consensus_lock.commitments.len() as u32 > CONSENSUS_THRESHOLD
     {
-        if consensus_state_lock.commitments.len() as u32 > CONSENSUS_THRESHOLD {
+        if consensus_lock.commitments.len() as u32 > CONSENSUS_THRESHOLD {
             let round_winner: GenericPublicKey =
-                evaluate_commitments(consensus_state_lock.commitments.clone());
-            consensus_state_lock.round_winner = Some(deserialize_vk(&round_winner));
+                evaluate_commitments(consensus_lock.commitments.clone());
+            consensus_lock.round_winner = Some(deserialize_vk(&round_winner));
+            // if this node won the round it will propose the new Block
+            let start = SystemTime::now();
+            let since_the_epoch = start
+                .duration_since(UNIX_EPOCH)
+                .expect("Time went backwards");
+            let unix_timestamp = since_the_epoch.as_secs() as u32;
+            if round_winner == consensus_lock.local_validator.to_sec1_bytes().to_vec() {
+                let mut proposed_block = Block {
+                    height: consensus_lock.height,
+                    signature: None,
+                    transactions: pool_state_lock.transactions.values().cloned().collect(),
+                    commitments: None,
+                    timestamp: unix_timestamp,
+                };
+                let mut signing_key = consensus_lock.local_signing_key.clone();
+                let signature: Signature = signing_key.sign(&proposed_block.to_bytes());
+                proposed_block.signature = Some(signature.to_bytes().to_vec());
+                let proposal_gossip_responses =
+                    local_gossipper.gossip_pending_block(proposed_block).await;
+                println!(
+                    "[Info] Proposal Gossip Responses: {:?}",
+                    &proposal_gossip_responses
+                );
+            }
         }
     }
 }
@@ -146,7 +171,7 @@ async fn main() {
 
 async fn schedule(
     Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
-    Json(transaction): Json<GenericTransactionData>,
+    Json(transaction): Json<Transaction>,
 ) -> String {
     let state = shared_state.lock().await;
     let success_response =
@@ -193,7 +218,7 @@ async fn propose(
             Ok(_) => {
                 // sign the block if it has not been signed yet
                 let mut is_signed = false;
-                let block_commitments = proposal.commitments.clone();
+                let block_commitments = proposal.commitments.clone().unwrap_or(Vec::new());
                 let mut commitment_count: u32 = 0;
                 for commitment in block_commitments {
                     let commitment_vk = deserialize_vk(&commitment.validator);
@@ -203,7 +228,9 @@ async fn propose(
                             &Signature::from_slice(&commitment.signature).unwrap(),
                         ) {
                             Ok(_) => commitment_count += 1,
-                            Err(_) => eprintln!("Invalid signature, skipping commitment!"),
+                            Err(_) => {
+                                eprintln!("[Warning] Invalid signature, skipping commitment!")
+                            }
                         }
                     }
                     if commitment.validator
@@ -242,11 +269,14 @@ async fn propose(
                             .clone(),
                         timestamp: unix_timestamp,
                     };
-                    proposal.commitments.push(commitment);
+                    match proposal.commitments.as_mut() {
+                        Some(commitments) => commitments.push(commitment),
+                        None => proposal.commitments = Some(vec![commitment]),
+                    }
                 }
             }
             Err(_) => {
-                eprintln!("Invalid Signature for Round Winner, Block Proposal Rejected!");
+                eprintln!("[Warning] Invalid Signature for Round Winner, Block Proposal Rejected!");
                 return error_response;
             }
         }
