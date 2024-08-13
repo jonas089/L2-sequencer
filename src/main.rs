@@ -53,7 +53,7 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
     let block_state_lock = state_lock.block_state.lock().await;
     let local_gossipper = state_lock.local_gossipper.lock().await;
     let last_block_unix_timestamp = block_state_lock
-        .get_block_by_height(block_state_lock.height)
+        .get_block_by_current_height(block_state_lock.height)
         .timestamp;
     let consensus_lock = state_lock.consensus_state.lock().await;
     if unix_timestamp > (last_block_unix_timestamp + config::consensus::ACCUMULATION_PHASE_DURATION)
