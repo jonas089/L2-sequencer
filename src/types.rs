@@ -1,4 +1,3 @@
-use k256::ecdsa::VerifyingKey;
 use risc0_zkvm::Receipt;
 use serde::{Deserialize, Serialize};
 

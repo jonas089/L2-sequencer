@@ -9,27 +9,24 @@ use axum::routing::post;
 use axum::Json;
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use colored::*;
-use config::consensus::{v1_sk_deserialized, v1_vk_deserialized, CONSENSUS_THRESHOLD};
+use config::consensus::CONSENSUS_THRESHOLD;
 use config::network::PEERS;
 use consensus::logic::evaluate_commitments;
-use crypto::ecdsa::{deserialize_vk, Keypair};
+use crypto::ecdsa::deserialize_vk;
 use gossipper::Gossipper;
-use indicatif::ProgressBar;
 use k256::ecdsa::signature::{SignerMut, Verifier};
 use k256::ecdsa::Signature;
-use k256::elliptic_curve::consts::False;
 use prover::generate_random_number;
-use reqwest::{Client, Response};
-use risc0_zkvm::Receipt;
+use reqwest::Client;
 use state::server::{InMemoryBlockStore, InMemoryConsensus, InMemoryTransactionPool};
-use std::collections::HashMap;
+use std::env;
 use std::sync::Arc;
-use std::thread::sleep;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+//use std::thread::sleep;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use types::{
     Block, BlockCommitment, ConsensusCommitment, GenericPublicKey, GenericSignature,
-    GenericTransactionData, Transaction,
+    GenericTransactionData,
 };
 struct InMemoryServerState {
     block_state: Arc<Mutex<InMemoryBlockStore>>,
@@ -131,9 +128,11 @@ async fn main() {
         .route("/propose", post(propose))
         .layer(DefaultBodyLimit::max(10000000))
         .layer(Extension(shared_state));
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:8080")
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(
+        env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()),
+    )
+    .await
+    .unwrap();
     axum::serve(listener, api).await.unwrap();
 }
 
@@ -289,15 +288,19 @@ async fn test_schedule_transaction() {
     )
 }
 
-#[tokio::test]
-async fn test_commit() {
-    let keypair: Keypair = Keypair {
-        sk: v1_sk_deserialized(),
-        vk: v1_vk_deserialized(),
+#[cfg(test)]
+mod tests {
+    use crate::{
+        config::consensus::{v1_sk_deserialized, v1_vk_deserialized},
+        crypto::ecdsa::Keypair,
+        types::{GenericTransactionData, Transaction},
     };
-    let transaction_data: GenericTransactionData = vec![0; 32];
-    let transaction: Transaction = Transaction {
-        data: transaction_data,
-        timestamp: 0u32,
-    };
+
+    #[tokio::test]
+    async fn test_commit() {
+        let keypair: Keypair = Keypair {
+            sk: v1_sk_deserialized(),
+            vk: v1_vk_deserialized(),
+        };
+    }
 }

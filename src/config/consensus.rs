@@ -7,7 +7,6 @@ pub const ACCUMULATION_PHASE_DURATION: u32 = 600; // 10 minutes
 pub const COMMITMENT_PHASE_DURATION: u32 = 60; // 1 minute
 pub const CONSENSUS_THRESHOLD: u32 = 2; // for the first iteration of development,
                                         // 2 nodes will be run and both must commit to the Consensus round
-pub const VALIDATOR_COUNT: u32 = 2;
 
 pub const TEST_V1_SK: &'static [u8] = &[
     197, 131, 252, 199, 111, 171, 195, 194, 6, 111, 156, 165, 24, 173, 168, 49, 220, 204, 234, 73,
@@ -33,12 +32,12 @@ pub fn v1_sk_deserialized() -> SigningKey {
     deserialize_sk(&TEST_V1_SK)
 }
 
-pub fn v2_sk_deserialized() -> SigningKey {
-    deserialize_sk(&TEST_V2_SK)
-}
-
 pub fn v1_vk_deserialized() -> VerifyingKey {
     deserialize_vk(&TEST_V1_VK)
+}
+
+pub fn v2_sk_deserialized() -> SigningKey {
+    deserialize_sk(&TEST_V2_SK)
 }
 
 pub fn v2_vk_deserialized() -> VerifyingKey {

@@ -1,12 +1,14 @@
-use crate::types::Block;
-use reqwest::{Client, Response};
+use std::env;
 
-use crate::{config::network::DEFAULT_RPC_PORT, types::ConsensusCommitment};
+use crate::types::Block;
+use reqwest::Client;
+
+use crate::types::ConsensusCommitment;
 
 // gossip commitments to other nodes
-pub type peer = &'static str;
+pub type PEER = &'static str;
 pub struct Gossipper {
-    pub peers: Vec<peer>,
+    pub peers: Vec<PEER>,
     pub client: Client,
 }
 impl Gossipper {
@@ -14,6 +16,9 @@ impl Gossipper {
         let mut responses: Vec<String> = Vec::new();
         let json_block: String = serde_json::to_string(&block).unwrap();
         for peer in &self.peers {
+            if peer == &env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
+                continue;
+            }
             let response = self
                 .client
                 .post(format!("{}{}", &peer, "/propose"))
@@ -33,6 +38,9 @@ impl Gossipper {
         let mut responses: Vec<String> = Vec::new();
         let json_commitment: String = serde_json::to_string(&commitment).unwrap();
         for peer in &self.peers {
+            if peer == &env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
+                continue;
+            }
             let response = self
                 .client
                 .post(format!("{}{}", &peer, "/commit"))
