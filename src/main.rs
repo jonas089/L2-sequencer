@@ -131,11 +131,16 @@ async fn main() {
         .route("/propose", post(propose))
         .layer(DefaultBodyLimit::max(10000000))
         .layer(Extension(shared_state));
-    let listener = tokio::net::TcpListener::bind(
-        env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()),
-    )
-    .await
-    .unwrap();
+    let host_with_port = env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string());
+    let listener = tokio::net::TcpListener::bind(&host_with_port)
+        .await
+        .unwrap();
+    let formatted_msg = format!(
+        "{}{}",
+        "Starting Node: ".green().italic(),
+        &host_with_port.yellow().bold()
+    );
+    println!("{}", formatted_msg);
     axum::serve(listener, api).await.unwrap();
 }
 

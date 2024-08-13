@@ -21,7 +21,7 @@ impl Gossipper {
             }
             let response = self
                 .client
-                .post(format!("{}{}", &peer, "/propose"))
+                .post(format!("http://{}{}", &peer, "/propose"))
                 .header("Content-Type", "application/json")
                 .body(json_block.clone())
                 .send()
@@ -43,7 +43,7 @@ impl Gossipper {
             }
             let response = self
                 .client
-                .post(format!("{}{}", &peer, "/commit"))
+                .post(format!("http://{}{}", &peer, "/commit"))
                 .header("Content-Type", "application/json")
                 .body(json_commitment.clone())
                 .send()
