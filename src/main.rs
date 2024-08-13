@@ -21,6 +21,7 @@ use reqwest::Client;
 use state::server::{InMemoryBlockStore, InMemoryConsensus, InMemoryTransactionPool};
 use std::env;
 use std::sync::Arc;
+use tokio::time::timeout;
 //use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
@@ -35,11 +36,36 @@ struct InMemoryServerState {
 }
 
 async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
-    // todo: synchronize Blocks with other nodes
-    // fetch if the height is > this node's
-    // verify the signatures and threshold
-    // store valid blocks
-    // when a block is found and synchronized the pool_state and consensus_state are rest for height += 1
+    tokio::spawn(async move {
+        if let Ok(mut state_lock) = timeout(Duration::from_secs(5), database.lock()).await {
+            let next_height = state_lock.consensus_state.height + 1;
+            let gossipper = Gossipper {
+                peers: PEERS.to_vec(),
+                client: Client::new(),
+            };
+            for peer in gossipper.peers {
+                if peer == &env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
+                    continue;
+                }
+                let response = gossipper
+                    .client
+                    .get(format!("http://{}{}{}", &peer, "/get/block/", next_height))
+                    .send()
+                    .await
+                    .unwrap();
+                println!("[Info] Block Response: {:?}", &response);
+                let block_serialized = response.text().await.unwrap();
+                if block_serialized != "[Warning] Requested Block that does not exist".to_string() {
+                    let block: Block = serde_json::from_str(&block_serialized).unwrap();
+                    state_lock.block_state.insert_block(next_height - 1, block);
+                    state_lock.consensus_state.height += 1;
+                }
+                println!("[Info] Synchronized Block");
+            }
+        } else {
+            println!("[Error] Timeout while waiting for lock or data.");
+        }
+    });
 }
 
 async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
@@ -129,10 +155,7 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
                 .local_gossipper
                 .gossip_pending_block(proposed_block)
                 .await;
-            println!(
-                "[Info] Proposal Gossip Responses: {:?}",
-                &proposal_gossip_responses
-            );
+            println!("[Info] Block was proposed");
         }
         state_lock.consensus_state.committed = true;
     }
@@ -178,7 +201,16 @@ async fn main() {
     );
     println!("{}", formatted_msg);
 
-    //tokio::spawn(synchronization_loop(Arc::clone(&shared_state)));
+    tokio::spawn({
+        let shared_state = Arc::clone(&shared_state);
+        async move {
+            loop {
+                // for now the loop syncs one block at a time, this can be optimized
+                synchronization_loop(Arc::clone(&shared_state)).await;
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
+        }
+    });
     tokio::spawn({
         let shared_state = Arc::clone(&shared_state);
         async move {
@@ -347,7 +379,11 @@ async fn get_block(
 ) -> String {
     let state_lock = shared_state.lock().await;
     println!("[Info] Trying to get Block #{:?}", &height);
-    serde_json::to_string(&state_lock.block_state.get_block_by_height(height)).unwrap()
+    if state_lock.block_state.height < height {
+        "[Warning] Requested Block that does not exist".to_string()
+    } else {
+        serde_json::to_string(&state_lock.block_state.get_block_by_height(height)).unwrap()
+    }
 }
 
 #[tokio::test]
