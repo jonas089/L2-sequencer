@@ -1,4 +1,4 @@
-use std::{env, time::Duration};
+use std::{env, ops::Deref, time::Duration};
 
 use crate::types::Block;
 use reqwest::Client;
@@ -13,7 +13,6 @@ pub struct Gossipper {
 }
 impl Gossipper {
     pub async fn gossip_pending_block(&self, block: Block) {
-        let mut responses: Vec<String> = Vec::new();
         for peer in &self.peers {
             let client_clone = self.client.clone();
             let peer_clone = peer.clone();

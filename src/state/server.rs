@@ -21,7 +21,7 @@ impl InMemoryBlockStore {
         }
     }
     pub fn trigger_genesis(&mut self, timestamp: Timestamp) {
-        self.insert_block(
+        self.blocks.insert(
             0u32,
             Block {
                 timestamp,
@@ -31,14 +31,10 @@ impl InMemoryBlockStore {
                 commitments: None,
             },
         );
-        self.height += 1;
     }
     pub fn insert_block(&mut self, previous_height: u32, block: Block) {
         self.blocks.insert(previous_height + 1, block);
         self.height += 1;
-    }
-    pub fn get_block_by_current_height(&self, height: u32) -> &Block {
-        self.blocks.get(&(height - 1)).expect("Failed to get Block")
     }
     pub fn get_block_by_height(&self, height: u32) -> &Block {
         self.blocks.get(&height).expect("Failed to get Block")
@@ -83,6 +79,7 @@ pub struct InMemoryConsensus {
     pub commitments: Vec<ConsensusCommitment>,
     pub round_winner: Option<VerifyingKey>,
     pub proposed: bool,
+    pub committed: bool,
 }
 
 impl InMemoryConsensus {
@@ -95,6 +92,7 @@ impl InMemoryConsensus {
             commitments: Vec::new(),
             round_winner: None,
             proposed: false,
+            committed: false,
         }
     }
     pub fn empty_with_default_validators(height: u32) -> InMemoryConsensus {
@@ -107,6 +105,7 @@ impl InMemoryConsensus {
             commitments: Vec::new(),
             round_winner: None,
             proposed: false,
+            committed: false,
         }
     }
     pub fn insert_commitment(&mut self, commitment: ConsensusCommitment) {

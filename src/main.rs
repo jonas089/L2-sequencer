@@ -51,7 +51,7 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
     let mut state_lock = state.lock().await;
     let last_block_unix_timestamp = state_lock
         .block_state
-        .get_block_by_current_height(state_lock.block_state.height)
+        .get_block_by_height(state_lock.block_state.height)
         .timestamp;
     println!(
         "Unix Timestamp: {} Target: {}",
@@ -59,6 +59,7 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
         (last_block_unix_timestamp + config::consensus::ACCUMULATION_PHASE_DURATION)
     );
     if unix_timestamp > (last_block_unix_timestamp + config::consensus::ACCUMULATION_PHASE_DURATION)
+        && !state_lock.consensus_state.proposed
     {
         println!("[Info] Generating ZK Random Number");
         // commit to consensus
@@ -84,13 +85,14 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
             .gossip_consensus_commitment(commitment)
             .await;
         println!("[Info] Done Awaiting Gossip");
+        state_lock.consensus_state.proposed = true;
     }
     if unix_timestamp
         > (last_block_unix_timestamp
             + config::consensus::ACCUMULATION_PHASE_DURATION
             + config::consensus::COMMITMENT_PHASE_DURATION)
             // this is an issue, since this can include invalid commitments, todo: check the commitments first!
-        && state_lock.consensus_state.commitments.len() as u32 >= CONSENSUS_THRESHOLD
+        && state_lock.consensus_state.commitments.len() as u32 >= CONSENSUS_THRESHOLD && !state_lock.consensus_state.committed
     {
         let round_winner: GenericPublicKey =
             evaluate_commitments(state_lock.consensus_state.commitments.clone());
@@ -132,6 +134,7 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
                 &proposal_gossip_responses
             );
         }
+        state_lock.consensus_state.committed = true;
     }
 }
 
@@ -272,11 +275,13 @@ async fn propose(
                     }
                 }
                 if commitment_count >= CONSENSUS_THRESHOLD {
+                    println!("[Info] Found Block with Sufficient Commitments");
                     let previous_block_height = state_lock.block_state.height;
                     // todo: verify Block height
                     state_lock
                         .block_state
                         .insert_block(previous_block_height, proposal.clone());
+                    println!("[Info] Block was Stored");
                     state_lock
                         .consensus_state
                         .reinitialize(previous_block_height + 1);
@@ -309,6 +314,10 @@ async fn propose(
                         Some(commitments) => commitments.push(commitment),
                         None => proposal.commitments = Some(vec![commitment]),
                     }
+                    let _ = state_lock
+                        .local_gossipper
+                        .gossip_pending_block(proposal)
+                        .await;
                 }
             }
             Err(_) => {
@@ -317,10 +326,6 @@ async fn propose(
             }
         }
     }
-    let _ = state_lock
-        .local_gossipper
-        .gossip_pending_block(proposal)
-        .await;
     "Ok".to_string()
 }
 
@@ -341,6 +346,7 @@ async fn get_block(
     Path(height): Path<u32>,
 ) -> String {
     let state_lock = shared_state.lock().await;
+    println!("[Info] Trying to get Block #{:?}", &height);
     serde_json::to_string(&state_lock.block_state.get_block_by_height(height)).unwrap()
 }
 
