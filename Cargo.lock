@@ -1540,10 +1540,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "bincode",
  "colored",
  "indicatif",
  "jsonrpsee-core",
  "k256",
+ "lazy_static",
  "prover",
  "rand_core",
  "reqwest 0.12.5",

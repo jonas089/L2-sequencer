@@ -1,7 +1,8 @@
-use k256::ecdsa::VerifyingKey;
+use k256::ecdsa::{SigningKey, VerifyingKey};
 
-use crate::types::{
-    Block, BlockCommitment, ConsensusCommitment, GenericTransactionData, Timestamp,
+use crate::{
+    config::consensus::{v1_sk_deserialized, v1_vk_deserialized, v2_sk_deserialized},
+    types::{Block, BlockCommitment, ConsensusCommitment, GenericTransactionData, Timestamp},
 };
 use std::collections::HashMap;
 
@@ -23,14 +24,15 @@ impl InMemoryBlockStore {
             Block {
                 timestamp,
                 height: 0,
+                signature: Some(vec![]),
                 transactions: vec![],
                 commitments: vec![],
             },
         );
         self.height += 1;
     }
-    pub fn insert_block(&mut self, height: u32, block: Block) {
-        self.blocks.insert(height, block);
+    pub fn insert_block(&mut self, previous_height: u32, block: Block) {
+        self.blocks.insert(previous_height + 1, block);
         self.height += 1;
     }
     pub fn get_block_by_height(&self, height: u32) -> &Block {
@@ -61,7 +63,7 @@ impl InMemoryTransactionPool {
             .get(&index)
             .expect("Failed to get Transaction")
     }
-    pub fn reset(&mut self, height: u32) {
+    pub fn reinitialize(&mut self, height: u32) {
         self.height = height;
         self.size = 0;
         self.transactions = HashMap::new();
@@ -71,7 +73,10 @@ impl InMemoryTransactionPool {
 pub struct InMemoryConsensus {
     pub height: u32,
     pub validators: Vec<VerifyingKey>,
+    pub local_validator: VerifyingKey,
+    pub local_signing_key: SigningKey,
     pub commitments: Vec<ConsensusCommitment>,
+    pub round_winner: Option<VerifyingKey>,
 }
 
 impl InMemoryConsensus {
@@ -79,7 +84,10 @@ impl InMemoryConsensus {
         Self {
             height,
             validators: Vec::new(),
+            local_validator: v1_vk_deserialized(),
+            local_signing_key: v2_sk_deserialized(),
             commitments: Vec::new(),
+            round_winner: None,
         }
     }
     pub fn empty_with_default_validators(height: u32) -> InMemoryConsensus {
@@ -87,13 +95,18 @@ impl InMemoryConsensus {
         Self {
             height,
             validators: vec![v1_vk_deserialized(), v2_vk_deserialized()],
+            local_validator: v1_vk_deserialized(),
+            local_signing_key: v1_sk_deserialized(),
             commitments: Vec::new(),
+            round_winner: None,
         }
     }
     pub fn insert_commitment(&mut self, commitment: ConsensusCommitment) {
         self.commitments.push(commitment);
     }
-    pub fn reset(&mut self) {
+    pub fn reinitialize(&mut self, height: u32) {
+        self.height = height;
         self.commitments = Vec::new();
+        self.round_winner = None;
     }
 }

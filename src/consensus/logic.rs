@@ -6,6 +6,7 @@ use zk_logic::{random_bytes_to_int, types::CircuitOutputs};
     timestamp, find the closest commitment to the mean commitments
 */
 pub fn evaluate_commitments(commitments: Vec<ConsensusCommitment>) -> GenericPublicKey {
+    // todo: verify the associated signatures
     let commitment_values = {
         let mut commitment_values: Vec<u32> = Vec::new();
         for commitment in &commitments {

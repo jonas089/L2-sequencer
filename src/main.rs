@@ -1,29 +1,40 @@
 mod config;
 mod consensus;
 mod crypto;
+mod gossipper;
 mod state;
 mod types;
 use axum::routing::post;
 use axum::Json;
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use colored::*;
-use config::consensus::{consensus_threshold, v1_sk_deserialized, v1_vk_deserialized};
+use config::consensus::{v1_sk_deserialized, v1_vk_deserialized, CONSENSUS_THRESHOLD};
+use config::network::PEERS;
 use consensus::logic::evaluate_commitments;
-use crypto::ecdsa::Keypair;
+use crypto::ecdsa::{deserialize_vk, Keypair};
+use gossipper::Gossipper;
 use indicatif::ProgressBar;
-use reqwest::Client;
+use k256::ecdsa::signature::{SignerMut, Verifier};
+use k256::ecdsa::Signature;
+use k256::elliptic_curve::consts::False;
+use prover::generate_random_number;
+use reqwest::{Client, Response};
+use risc0_zkvm::Receipt;
 use state::server::{InMemoryBlockStore, InMemoryConsensus, InMemoryTransactionPool};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use tokio::sync::Mutex;
 use types::{
-    Block, BlockCommitment, ConsensusCommitment, GenericPublicKey, GenericTransactionData,
+    Block, BlockCommitment, ConsensusCommitment, GenericPublicKey, GenericSignature,
+    GenericTransactionData, Transaction,
 };
 struct InMemoryServerState {
     block_state: Arc<Mutex<InMemoryBlockStore>>,
     pool_state: Arc<Mutex<InMemoryTransactionPool>>,
     consensus_state: Arc<Mutex<InMemoryConsensus>>,
+    local_gossipper: Arc<Mutex<Gossipper>>,
 }
 
 async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
@@ -34,33 +45,47 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
     // when a block is found and synchronized the pool_state and consensus_state are rest for height += 1
 }
 
-async fn consensus_loop(database: Arc<Mutex<InMemoryServerState>>) {
+async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
     let start = SystemTime::now();
     let since_the_epoch = start
         .duration_since(UNIX_EPOCH)
         .expect("Time went backwards");
     let unix_timestamp = since_the_epoch.as_secs() as u32;
-    let database_lock = database.lock().unwrap();
-    let block_state_lock = database_lock.block_state.lock().unwrap();
+    let state_lock = state.lock().await;
+    let block_state_lock = state_lock.block_state.lock().await;
+    let local_gossipper = state_lock.local_gossipper.lock().await;
     let last_block_unix_timestamp = block_state_lock
         .get_block_by_height(block_state_lock.height)
         .timestamp;
-    if unix_timestamp > (last_block_unix_timestamp + config::consensus::accumulation_phase_duration)
+    let consensus_lock = state_lock.consensus_state.lock().await;
+    if unix_timestamp > (last_block_unix_timestamp + config::consensus::ACCUMULATION_PHASE_DURATION)
     {
         // commit to consensus
+        let random_zk_commitment = generate_random_number(
+            consensus_lock.local_validator.to_sec1_bytes().to_vec(),
+            consensus_lock.height.to_be_bytes().to_vec(),
+        );
+        let commitment = ConsensusCommitment {
+            validator: consensus_lock.local_validator.to_sec1_bytes().to_vec(),
+            receipt: random_zk_commitment, // to be added: Signature
+        };
+        let consensus_gossip = local_gossipper
+            .gossip_consensus_commitment(commitment)
+            .await;
+
+        println!("Consensus Gossip Responses: {:?}", &consensus_gossip);
     }
     if unix_timestamp
         > (last_block_unix_timestamp
-            + config::consensus::accumulation_phase_duration
-            + config::consensus::commitment_phase_duration)
+            + config::consensus::ACCUMULATION_PHASE_DURATION
+            + config::consensus::COMMITMENT_PHASE_DURATION)
     {
-        let consensus_state_lock = database_lock.consensus_state.lock().unwrap();
-        if consensus_state_lock.commitments.len() as u32 > consensus_threshold {
+        let mut consensus_state_lock = state_lock.consensus_state.lock().await;
+        if consensus_state_lock.commitments.len() as u32 > CONSENSUS_THRESHOLD {
             let round_winner: GenericPublicKey =
                 evaluate_commitments(consensus_state_lock.commitments.clone());
-            // todo: gossip the round winner to other validators
+            consensus_state_lock.round_winner = Some(deserialize_vk(&round_winner));
         }
-        // conclude the commitment phase, if sufficiently many commitments were received
     }
 }
 #[tokio::main]
@@ -83,11 +108,16 @@ async fn main() {
     );
     let block_state: InMemoryBlockStore = InMemoryBlockStore::empty();
     let pool_state: InMemoryTransactionPool = InMemoryTransactionPool::empty(0);
-    let consensus_state: InMemoryConsensus = InMemoryConsensus::empty(0);
+    let consensus_state: InMemoryConsensus = InMemoryConsensus::empty_with_default_validators(0);
+    let local_gossipper: Gossipper = Gossipper {
+        peers: PEERS.to_vec(),
+        client: Client::new(),
+    };
     let shared_state: Arc<Mutex<InMemoryServerState>> = Arc::new(Mutex::new(InMemoryServerState {
         block_state: Arc::new(Mutex::new(block_state)),
         pool_state: Arc::new(Mutex::new(pool_state)),
         consensus_state: Arc::new(Mutex::new(consensus_state)),
+        local_gossipper: Arc::new(Mutex::new(local_gossipper)),
     }));
     tokio::spawn(synchronization_loop(Arc::clone(&shared_state)));
     tokio::spawn(consensus_loop(Arc::clone(&shared_state)));
@@ -109,13 +139,13 @@ async fn schedule(
     Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
     Json(transaction): Json<GenericTransactionData>,
 ) -> String {
-    let state = shared_state.lock().unwrap();
+    let state = shared_state.lock().await;
     let success_response =
         format!("Transaction is being sequenced: {:?}", &transaction).to_string();
     state
         .pool_state
         .lock()
-        .unwrap()
+        .await
         .insert_transaction(transaction);
     success_response
 }
@@ -124,40 +154,110 @@ async fn commit(
     Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
     Json(commitment): Json<ConsensusCommitment>,
 ) -> String {
-    let state = shared_state.lock().unwrap();
+    let state = shared_state.lock().await;
     let success_response = format!("Commitment was accepted: {:?}", &commitment).to_string();
     state
         .consensus_state
         .lock()
-        .unwrap()
+        .await
         .insert_commitment(commitment);
     success_response
 }
 
 async fn propose(
     Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
-    Json(proposal): Json<Block>,
+    Json(mut proposal): Json<Block>,
 ) -> String {
-    let state = shared_state.lock().unwrap();
-    let success_response = format!("Block was accepted: {:?}", &proposal).to_string();
-    let pending_response = format!("Block is pending commitments: {:?}", &proposal).to_string();
-
-    todo!("Finish implementing this route");
-
-    success_response
+    let state = shared_state.lock().await;
+    let mut consensus_lock = state.consensus_state.lock().await;
+    let error_response = format!("Block was rejected: {:?}", &proposal).to_string();
+    // if the block is complete, store it and reset memory db
+    // if the block is incomplete, attest to it (in case this node hasn't yet done that)
+    // and gossip it
+    let block_signature = proposal
+        .signature
+        .clone()
+        .expect("Block has not been signed!");
+    if let Some(round_winner) = consensus_lock.round_winner {
+        let signature_deserialized = Signature::from_slice(&block_signature).unwrap();
+        match round_winner.verify(&proposal.to_bytes(), &signature_deserialized) {
+            Ok(_) => {
+                // sign the block if it has not been signed yet
+                let mut is_signed = false;
+                let block_commitments = proposal.commitments.clone();
+                let mut commitment_count: u32 = 0;
+                for commitment in block_commitments {
+                    let commitment_vk = deserialize_vk(&commitment.validator);
+                    if consensus_lock.validators.contains(&commitment_vk) {
+                        match commitment_vk.verify(
+                            &proposal.to_bytes(),
+                            &Signature::from_slice(&commitment.signature).unwrap(),
+                        ) {
+                            Ok(_) => commitment_count += 1,
+                            Err(_) => eprintln!("Invalid signature, skipping commitment!"),
+                        }
+                    }
+                    if commitment.validator
+                        == consensus_lock.local_validator.to_sec1_bytes().to_vec()
+                    {
+                        is_signed = true;
+                    }
+                }
+                if commitment_count >= CONSENSUS_THRESHOLD {
+                    let mut block_state_lock = state.block_state.lock().await;
+                    let previous_block_height = block_state_lock.height;
+                    // todo: verify Block height
+                    block_state_lock.insert_block(previous_block_height, proposal.clone());
+                    consensus_lock.reinitialize(previous_block_height + 1);
+                } else if !is_signed {
+                    // sign the proposal
+                    let mut local_sk = consensus_lock.local_signing_key.clone();
+                    let block_bytes = proposal.to_bytes();
+                    let signature: Signature = local_sk.sign(&block_bytes);
+                    let signature_serialized: GenericSignature = signature.to_bytes().to_vec();
+                    //////////////////////////////////////////////////////
+                    //                  Todo: factor this out           //
+                    //////////////////////////////////////////////////////
+                    let start = SystemTime::now();
+                    let since_the_epoch = start
+                        .duration_since(UNIX_EPOCH)
+                        .expect("Time went backwards");
+                    let unix_timestamp = since_the_epoch.as_secs() as u32;
+                    //////////////////////////////////////////////////////
+                    let commitment = BlockCommitment {
+                        signature: signature_serialized,
+                        validator: consensus_lock
+                            .local_validator
+                            .to_sec1_bytes()
+                            .to_vec()
+                            .clone(),
+                        timestamp: unix_timestamp,
+                    };
+                    proposal.commitments.push(commitment);
+                }
+            }
+            Err(_) => {
+                eprintln!("Invalid Signature for Round Winner, Block Proposal Rejected!");
+                return error_response;
+            }
+        }
+    }
+    let gossiper_lock = state.local_gossipper.lock().await;
+    let responses: Vec<String> = gossiper_lock.gossip_pending_block(proposal).await;
+    serde_json::to_string(&responses).unwrap()
 }
 
 async fn get_pool(Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>) -> String {
-    let state = shared_state.lock().unwrap();
-    let pool_state = state.pool_state.lock().unwrap();
+    let state = shared_state.lock().await;
+    let pool_state = state.pool_state.lock().await;
     format!("{:?}", pool_state.transactions)
 }
 
 async fn get_commitments(
     Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
 ) -> String {
-    let state = shared_state.lock().unwrap();
-    let consensus_state = state.consensus_state.lock().unwrap();
+    let state = shared_state.lock().await;
+    let consensus_state = state.consensus_state.lock().await;
     format!("{:?}", consensus_state.commitments)
 }
 
@@ -183,5 +283,10 @@ async fn test_commit() {
     let keypair: Keypair = Keypair {
         sk: v1_sk_deserialized(),
         vk: v1_vk_deserialized(),
+    };
+    let transaction_data: GenericTransactionData = vec![0; 32];
+    let transaction: Transaction = Transaction {
+        data: transaction_data,
+        timestamp: 0u32,
     };
 }

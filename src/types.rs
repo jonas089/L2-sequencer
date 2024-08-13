@@ -11,8 +11,21 @@ pub type GenericPublicKey = Vec<u8>;
 pub struct Block {
     pub height: u32,
     pub transactions: Vec<Transaction>,
+    pub signature: Option<GenericSignature>,
     pub commitments: Vec<BlockCommitment>,
     pub timestamp: Timestamp,
+}
+impl Block {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let temp_block: Block = Block {
+            height: self.height,
+            transactions: self.transactions.clone(),
+            signature: None,
+            commitments: self.commitments.clone(),
+            timestamp: self.timestamp,
+        };
+        bincode::serialize(&temp_block).unwrap()
+    }
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Transaction {
