@@ -43,6 +43,10 @@ To submit an example Transaction to both nodes, run:
 cargo test test_schedule_transactions
 ```
 
+Note that currently only the Transactions stored in the Block-creating validator's pool are sored.
+For a validator to commit it's pool it must win a consensus round, there is currently no synchronization between nodes other
+than Block synchronization.
+
 # API Routes
 
 ## Internal
@@ -60,5 +64,7 @@ cargo test test_schedule_transactions
 
 To view a Block when running the example setup, request `127.0.0.1:8080/get/block/<id>`, or `127.0.0.1:8081/get/block/<id>`.
 
-## Merkle Commitments
+# Merkle Commitments
 TBD
+
+
