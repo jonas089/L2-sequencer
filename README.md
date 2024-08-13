@@ -44,5 +44,4 @@ cargo test test_schedule_transactions
 ```
 
 ## Merkle Commitments
-The exact nature of the merkle commitments is yet to be defined. Either Blocks will be stored as leafs in a Merkle Tree, or all Transactions in those Blocks will be stored as leafs in a Merkle Tree. Once the consensus and block generation is in place I will decide on this and implement it. Finally a reporting oracle will pass the root hash on to a Blockchain where merkle paths for sequenced transactions can be verified.
-
+TBD
