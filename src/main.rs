@@ -57,6 +57,8 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
                     let block: Block = serde_json::from_str(&block_serialized).unwrap();
                     state_lock.block_state.insert_block(next_height - 1, block);
                     state_lock.consensus_state.height += 1;
+                    state_lock.consensus_state.proposed = false;
+                    state_lock.consensus_state.committed = false;
                     println!("{}", format!("{} Synchronized Block", "[Info]".green()));
                 }
             }

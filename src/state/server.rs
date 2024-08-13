@@ -113,5 +113,7 @@ impl InMemoryConsensus {
         self.height = height;
         self.commitments = Vec::new();
         self.round_winner = None;
+        self.proposed = false;
+        self.committed = false;
     }
 }
