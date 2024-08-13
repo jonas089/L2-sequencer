@@ -1,4 +1,6 @@
 # PoRD-SQ: Semi-decentralized Sequencer based on my ZK Consensus Protocol
+⚠️ This Project is not production ready and in a Research stage of development ⚠️
+
 This project is based on my half-baked consensus protocol [Proof of Random Delta](https://github.com/jonas089/PoRD)
 
 Read the PoRD whitepaper [here](https://github.com/jonas089/PoRD/tree/master/whitepaper)
