@@ -25,7 +25,7 @@ impl Gossipper {
                     .post(format!("http://{}{}", &peer_clone, "/propose"))
                     .header("Content-Type", "application/json")
                     .body(json_block.clone())
-                    .timeout(Duration::from_secs(5))
+                    .timeout(Duration::from_secs(30))
                     .send()
                     .await
                     .unwrap();
@@ -46,6 +46,7 @@ impl Gossipper {
                     .post(format!("http://{}{}", &peer_clone, "/commit"))
                     .header("Content-Type", "application/json")
                     .body(json_commitment_clone)
+                    .timeout(Duration::from_secs(30))
                     .send()
                     .await
                     .unwrap();

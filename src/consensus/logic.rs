@@ -23,16 +23,16 @@ pub fn evaluate_commitments(commitments: Vec<ConsensusCommitment>) -> GenericPub
         commitment_values
     };
     let mean_commitment = {
-        let mut commitment_sum = 0;
+        let mut commitment_sum: u64 = 0;
         for timestamp in &commitment_values {
-            commitment_sum += timestamp;
+            commitment_sum += *timestamp as u64;
         }
-        commitment_sum / commitment_values.len() as u32
+        commitment_sum / commitment_values.len() as u64
     };
     choose_winner(mean_commitment, commitments)
 }
 
-fn choose_winner(mean_commitment: u32, commitments: Vec<ConsensusCommitment>) -> GenericPublicKey {
+fn choose_winner(mean_commitment: u64, commitments: Vec<ConsensusCommitment>) -> GenericPublicKey {
     let winner = commitments.iter().min_by_key(|commitment| {
         (random_bytes_to_int(
             &commitment

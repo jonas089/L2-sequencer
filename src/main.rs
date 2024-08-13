@@ -36,34 +36,32 @@ struct InMemoryServerState {
 
 async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
     tokio::spawn(async move {
-        if let Ok(mut state_lock) = timeout(Duration::from_secs(5), database.lock()).await {
-            let next_height = state_lock.consensus_state.height + 1;
-            let gossipper = Gossipper {
-                peers: PEERS.to_vec(),
-                client: Client::new(),
-            };
-            for peer in gossipper.peers {
-                if peer == &env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
-                    continue;
-                }
-                let response = gossipper
-                    .client
-                    .get(format!("http://{}{}{}", &peer, "/get/block/", next_height))
-                    .send()
-                    .await
-                    .unwrap();
-                let block_serialized = response.text().await.unwrap();
-                if block_serialized != "[Warning] Requested Block that does not exist".to_string() {
-                    let block: Block = serde_json::from_str(&block_serialized).unwrap();
-                    state_lock.block_state.insert_block(next_height - 1, block);
-                    state_lock.consensus_state.height += 1;
-                    state_lock.consensus_state.proposed = false;
-                    state_lock.consensus_state.committed = false;
-                    println!("{}", format!("{} Synchronized Block", "[Info]".green()));
-                }
+        let mut state_lock = database.lock().await;
+        let next_height = state_lock.consensus_state.height + 1;
+        let gossipper = Gossipper {
+            peers: PEERS.to_vec(),
+            client: Client::new(),
+        };
+        for peer in gossipper.peers {
+            if peer == &env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
+                continue;
             }
-        } else {
-            println!("{}", format!("{} Synchronization Timeout", "[Error]".red()));
+            let response = gossipper
+                .client
+                .get(format!("http://{}{}{}", &peer, "/get/block/", next_height))
+                .timeout(Duration::from_secs(3))
+                .send()
+                .await
+                .unwrap();
+            let block_serialized = response.text().await.unwrap();
+            if block_serialized != "[Warning] Requested Block that does not exist".to_string() {
+                let block: Block = serde_json::from_str(&block_serialized).unwrap();
+                state_lock.block_state.insert_block(next_height - 1, block);
+                state_lock.consensus_state.height += 1;
+                state_lock.consensus_state.proposed = false;
+                state_lock.consensus_state.committed = false;
+                println!("{}", format!("{} Synchronized Block", "[Info]".green()));
+            }
         }
     });
 }
@@ -386,7 +384,7 @@ fn get_current_time() -> u32 {
 }
 
 #[tokio::test]
-async fn test_schedule_transaction() {
+async fn test_schedule_transactions() {
     let client = Client::new();
     let transaction: Transaction = Transaction {
         data: vec![1, 2, 3, 4, 5],
@@ -396,14 +394,22 @@ async fn test_schedule_transaction() {
     let response = client
         .post("http://127.0.0.1:8080/schedule")
         .header("Content-Type", "application/json")
-        .body(transaction_json)
+        .body(transaction_json.clone())
         .send()
         .await
         .unwrap();
     assert_eq!(
         response.text().await.unwrap(),
         "Transaction is being sequenced: Transaction { data: [1, 2, 3, 4, 5], timestamp: 0 }"
-    )
+    );
+    // submit to other node aswell - since only the validator's pool will be included in the Block
+    let _ = client
+        .post("http://127.0.0.1:8081/schedule")
+        .header("Content-Type", "application/json")
+        .body(transaction_json)
+        .send()
+        .await
+        .unwrap();
 }
 
 #[cfg(test)]
