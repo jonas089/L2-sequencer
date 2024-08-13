@@ -2,9 +2,7 @@ use k256::ecdsa::{SigningKey, VerifyingKey};
 
 use crate::{
     config::consensus::{v1_sk_deserialized, v1_vk_deserialized, v2_sk_deserialized},
-    types::{
-        Block, BlockCommitment, ConsensusCommitment, GenericTransactionData, Timestamp, Transaction,
-    },
+    types::{Block, ConsensusCommitment, Timestamp, Transaction},
 };
 use std::collections::HashMap;
 
@@ -42,15 +40,13 @@ impl InMemoryBlockStore {
 }
 
 pub struct InMemoryTransactionPool {
-    pub height: u32,
     pub size: u32,
     pub transactions: HashMap<u32, Transaction>,
 }
 
 impl InMemoryTransactionPool {
-    pub fn empty(height: u32) -> Self {
+    pub fn empty() -> Self {
         Self {
-            height,
             size: 0,
             transactions: HashMap::new(),
         }
@@ -59,13 +55,14 @@ impl InMemoryTransactionPool {
         self.transactions.insert(self.size, transaction);
         self.size += 1;
     }
+    #[allow(unused)]
     pub fn get_transaction_by_index(&self, index: u32) -> &Transaction {
         self.transactions
             .get(&index)
             .expect("Failed to get Transaction")
     }
-    pub fn reinitialize(&mut self, height: u32) {
-        self.height = height;
+    #[allow(unused)]
+    pub fn reinitialize(&mut self) {
         self.size = 0;
         self.transactions = HashMap::new();
     }
@@ -83,6 +80,7 @@ pub struct InMemoryConsensus {
 }
 
 impl InMemoryConsensus {
+    #[allow(unused)]
     pub fn empty(height: u32) -> Self {
         Self {
             height,

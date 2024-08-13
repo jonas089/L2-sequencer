@@ -21,10 +21,9 @@ use reqwest::Client;
 use state::server::{InMemoryBlockStore, InMemoryConsensus, InMemoryTransactionPool};
 use std::env;
 use std::sync::Arc;
-use tokio::time::timeout;
-//use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
+use tokio::time::timeout;
 use types::{
     Block, BlockCommitment, ConsensusCommitment, GenericPublicKey, GenericSignature, Transaction,
 };
@@ -53,27 +52,22 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
                     .send()
                     .await
                     .unwrap();
-                println!("[Info] Block Response: {:?}", &response);
                 let block_serialized = response.text().await.unwrap();
                 if block_serialized != "[Warning] Requested Block that does not exist".to_string() {
                     let block: Block = serde_json::from_str(&block_serialized).unwrap();
                     state_lock.block_state.insert_block(next_height - 1, block);
                     state_lock.consensus_state.height += 1;
+                    println!("{}", format!("{} Synchronized Block", "[Info]".green()));
                 }
-                println!("[Info] Synchronized Block");
             }
         } else {
-            println!("[Error] Timeout while waiting for lock or data.");
+            println!("{}", format!("{} Synchronization Timeout", "[Error]".red()));
         }
     });
 }
 
 async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
-    let start = SystemTime::now();
-    let since_the_epoch = start
-        .duration_since(UNIX_EPOCH)
-        .expect("Time went backwards");
-    let unix_timestamp = since_the_epoch.as_secs() as u32;
+    let unix_timestamp = get_current_time();
     let mut state_lock = state.lock().await;
     let last_block_unix_timestamp = state_lock
         .block_state
@@ -87,7 +81,10 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
     if unix_timestamp > (last_block_unix_timestamp + config::consensus::ACCUMULATION_PHASE_DURATION)
         && !state_lock.consensus_state.proposed
     {
-        println!("[Info] Generating ZK Random Number");
+        println!(
+            "{}",
+            format!("{} Generating ZK Random Number", "[Info]".green())
+        );
         // commit to consensus
         let random_zk_commitment = generate_random_number(
             state_lock
@@ -105,12 +102,14 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
                 .to_vec(),
             receipt: random_zk_commitment, // to be added: Signature
         };
-        println!("[Info] Awaiting Gossip");
+        println!(
+            "{}",
+            format!("{} Gossipping Consensus Commitment", "[Info]".green())
+        );
         let _ = state_lock
             .local_gossipper
             .gossip_consensus_commitment(commitment)
             .await;
-        println!("[Info] Done Awaiting Gossip");
         state_lock.consensus_state.proposed = true;
     }
     if unix_timestamp
@@ -124,11 +123,7 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
             evaluate_commitments(state_lock.consensus_state.commitments.clone());
         state_lock.consensus_state.round_winner = Some(deserialize_vk(&round_winner));
         // if this node won the round it will propose the new Block
-        let start = SystemTime::now();
-        let since_the_epoch = start
-            .duration_since(UNIX_EPOCH)
-            .expect("Time went backwards");
-        let unix_timestamp = since_the_epoch.as_secs() as u32;
+        let unix_timestamp = get_current_time();
         if round_winner
             == state_lock
                 .consensus_state
@@ -151,11 +146,11 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
             let mut signing_key = state_lock.consensus_state.local_signing_key.clone();
             let signature: Signature = signing_key.sign(&proposed_block.to_bytes());
             proposed_block.signature = Some(signature.to_bytes().to_vec());
-            let proposal_gossip_responses = state_lock
+            let _ = state_lock
                 .local_gossipper
                 .gossip_pending_block(proposed_block)
                 .await;
-            println!("[Info] Block was proposed");
+            println!("{}", format!("{} Block was proposed", "[Info]".green()));
         }
         state_lock.consensus_state.committed = true;
     }
@@ -181,7 +176,7 @@ async fn main() {
     );
     let mut block_state: InMemoryBlockStore = InMemoryBlockStore::empty();
     block_state.trigger_genesis(0u32);
-    let pool_state: InMemoryTransactionPool = InMemoryTransactionPool::empty(0);
+    let pool_state: InMemoryTransactionPool = InMemoryTransactionPool::empty();
     let consensus_state: InMemoryConsensus = InMemoryConsensus::empty_with_default_validators(0);
     let local_gossipper: Gossipper = Gossipper {
         peers: PEERS.to_vec(),
@@ -307,13 +302,13 @@ async fn propose(
                     }
                 }
                 if commitment_count >= CONSENSUS_THRESHOLD {
-                    println!("[Info] Found Block with Sufficient Commitments");
+                    println!("{}", format!("{} Received Valid Block", "[Info]".green()));
                     let previous_block_height = state_lock.block_state.height;
                     // todo: verify Block height
                     state_lock
                         .block_state
                         .insert_block(previous_block_height, proposal.clone());
-                    println!("[Info] Block was Stored");
+                    println!("{}", format!("{} Block was stored", "[Info]".green()));
                     state_lock
                         .consensus_state
                         .reinitialize(previous_block_height + 1);
@@ -326,11 +321,7 @@ async fn propose(
                     //////////////////////////////////////////////////////
                     //                  Todo: factor this out           //
                     //////////////////////////////////////////////////////
-                    let start = SystemTime::now();
-                    let since_the_epoch = start
-                        .duration_since(UNIX_EPOCH)
-                        .expect("Time went backwards");
-                    let unix_timestamp = since_the_epoch.as_secs() as u32;
+                    let unix_timestamp = get_current_time();
                     //////////////////////////////////////////////////////
                     let commitment = BlockCommitment {
                         signature: signature_serialized,
@@ -378,12 +369,23 @@ async fn get_block(
     Path(height): Path<u32>,
 ) -> String {
     let state_lock = shared_state.lock().await;
-    println!("[Info] Trying to get Block #{:?}", &height);
+    println!(
+        "{}",
+        format!("{} Trying to get Block #{}", "[Info]".green(), height)
+    );
     if state_lock.block_state.height < height {
         "[Warning] Requested Block that does not exist".to_string()
     } else {
         serde_json::to_string(&state_lock.block_state.get_block_by_height(height)).unwrap()
     }
+}
+
+fn get_current_time() -> u32 {
+    let start = SystemTime::now();
+    let since_the_epoch = start
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+    since_the_epoch.as_secs() as u32
 }
 
 #[tokio::test]
@@ -395,7 +397,7 @@ async fn test_schedule_transaction() {
     };
     let transaction_json: String = serde_json::to_string(&transaction).unwrap();
     let response = client
-        .post("http://127.0.0.1:8081/schedule")
+        .post("http://127.0.0.1:8080/schedule")
         .header("Content-Type", "application/json")
         .body(transaction_json)
         .send()

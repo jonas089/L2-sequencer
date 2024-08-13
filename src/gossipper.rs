@@ -1,4 +1,4 @@
-use std::{env, ops::Deref, time::Duration};
+use std::{env, time::Duration};
 
 use crate::types::Block;
 use reqwest::Client;
@@ -41,10 +41,6 @@ impl Gossipper {
             if peer == &env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
                 continue;
             }
-            println!(
-                "[Info] Sending Commitment to: {:?}",
-                format!("http://{}{}", &peer, "/commit")
-            );
             tokio::spawn(async move {
                 let _ = client_clone
                     .post(format!("http://{}{}", &peer_clone, "/commit"))

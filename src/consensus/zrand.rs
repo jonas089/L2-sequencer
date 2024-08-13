@@ -4,6 +4,7 @@ use risc0_zkvm::Receipt;
 use zk_logic::random_bytes_to_int;
 use zk_logic::types::CircuitOutputs;
 
+#[allow(unused)]
 pub fn verify_random_number(receipt: Receipt) -> u32 {
     receipt.verify(ZK_RAND_ID).expect("Invalid Random Number");
     let outputs: CircuitOutputs = receipt.journal.decode().unwrap();

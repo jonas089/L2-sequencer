@@ -1,10 +1,4 @@
-use k256::{
-    ecdsa::{
-        signature::{Signer, Verifier},
-        Signature, SigningKey, VerifyingKey,
-    },
-    sha2::digest::Key,
-};
+use k256::ecdsa::{signature::Signer, Signature, SigningKey, VerifyingKey};
 use rand_core::OsRng;
 
 pub struct Keypair {
@@ -12,17 +6,21 @@ pub struct Keypair {
     pub vk: VerifyingKey,
 }
 impl Keypair {
+    #[allow(unused)]
     pub fn new() -> Self {
         let sk = SigningKey::random(&mut OsRng);
         let vk = VerifyingKey::from(&sk);
         Keypair { sk, vk }
     }
+    #[allow(unused)]
     pub fn sign_data(&self, data: &[u8]) -> Signature {
         self.sk.sign(data)
     }
+    #[allow(unused)]
     pub fn serialize_sk(&self) -> Vec<u8> {
         self.sk.to_bytes().to_vec()
     }
+    #[allow(unused)]
     pub fn serialize_vk(&self) -> Vec<u8> {
         self.vk.to_sec1_bytes().to_vec()
     }
@@ -54,6 +52,7 @@ fn test_serialize_and_deserialize_vk() {
 }
 #[test]
 fn test_generate_and_verify_ecdsa_signature_using_secp256k1_curve() {
+    use k256::ecdsa::signature::Verifier;
     let keypair = Keypair::new();
     let arbitrary_data: Vec<u8> = vec![0; 32];
     let signature = keypair.sign_data(&arbitrary_data);
