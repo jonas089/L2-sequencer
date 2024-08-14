@@ -71,10 +71,9 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
                         != "[Warning] Requested Block that does not exist".to_string()
                     {
                         let block: Block = serde_json::from_str(&block_serialized).unwrap();
+                        let block_height = block.height;
                         state_lock.block_state.insert_block(next_height - 1, block);
-                        state_lock.consensus_state.height += 1;
-                        state_lock.consensus_state.proposed = false;
-                        state_lock.consensus_state.committed = false;
+                        state_lock.consensus_state.reinitialize(block_height + 1);
                         println!("{}", format!("{} Synchronized Block", "[Info]".green()));
                     }
                 }
