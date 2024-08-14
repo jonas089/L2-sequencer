@@ -33,7 +33,7 @@ pub fn evaluate_commitments(commitments: Vec<ConsensusCommitment>) -> GenericPub
 }
 
 fn choose_winner(mean_commitment: u64, commitments: Vec<ConsensusCommitment>) -> GenericPublicKey {
-    let winner = commitments.iter().min_by_key(|commitment| {
+    let winner: Option<&ConsensusCommitment> = commitments.iter().min_by_key(|commitment| {
         (random_bytes_to_int(
             &commitment
                 .receipt
