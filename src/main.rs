@@ -35,47 +35,43 @@ struct InMemoryServerState {
 }
 
 async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
-    tokio::spawn(async move {
-        let mut state_lock = database.lock().await;
-        let next_height = state_lock.consensus_state.height + 1;
-        let gossipper = Gossipper {
-            peers: PEERS.to_vec(),
-            client: Client::new(),
+    let mut state_lock = database.lock().await;
+    let next_height = state_lock.consensus_state.height + 1;
+    let gossipper = Gossipper {
+        peers: PEERS.to_vec(),
+        client: Client::new(),
+    };
+    for peer in gossipper.peers {
+        if peer == &env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
+            continue;
+        }
+        let response: Option<Response> = match gossipper
+            .client
+            .get(format!("http://{}{}{}", &peer, "/get/block/", next_height))
+            .timeout(Duration::from_secs(3))
+            .send()
+            .await
+        {
+            Ok(response) => Some(response),
+            Err(_) => None,
         };
-        for peer in gossipper.peers {
-            if peer == &env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
-                continue;
+        match response {
+            Some(response) => {
+                let block_serialized = response.text().await.unwrap();
+                if block_serialized != "[Warning] Requested Block that does not exist".to_string() {
+                    let block: Block = serde_json::from_str(&block_serialized).unwrap();
+                    state_lock.block_state.insert_block(next_height - 1, block);
+                    state_lock.consensus_state.height += 1;
+                    state_lock.consensus_state.proposed = false;
+                    state_lock.consensus_state.committed = false;
+                    println!("{}", format!("{} Synchronized Block", "[Info]".green()));
+                }
             }
-            let response: Option<Response> = match gossipper
-                .client
-                .get(format!("http://{}{}{}", &peer, "/get/block/", next_height))
-                .timeout(Duration::from_secs(3))
-                .send()
-                .await
-            {
-                Ok(response) => Some(response),
-                Err(_) => None,
-            };
-            match response {
-                Some(response) => {
-                    let block_serialized = response.text().await.unwrap();
-                    if block_serialized
-                        != "[Warning] Requested Block that does not exist".to_string()
-                    {
-                        let block: Block = serde_json::from_str(&block_serialized).unwrap();
-                        state_lock.block_state.insert_block(next_height - 1, block);
-                        state_lock.consensus_state.height += 1;
-                        state_lock.consensus_state.proposed = false;
-                        state_lock.consensus_state.committed = false;
-                        println!("{}", format!("{} Synchronized Block", "[Info]".green()));
-                    }
-                }
-                None => {
-                    println!("{}", format!("{} Resource is Busy", "[Warning]".yellow()))
-                }
+            None => {
+                println!("{}", format!("{} Resource is Busy", "[Warning]".yellow()))
             }
         }
-    });
+    }
 }
 
 async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
