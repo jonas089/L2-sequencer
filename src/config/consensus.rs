@@ -3,8 +3,8 @@ use k256::ecdsa::{SigningKey, VerifyingKey};
 
 // time before a new block is created, from a block's timestamp onwards
 // specified in seconds
-pub const ACCUMULATION_PHASE_DURATION: u32 = 60; // 1 minutes
-pub const COMMITMENT_PHASE_DURATION: u32 = 30; // .5 minutes
+pub const ACCUMULATION_PHASE_DURATION: u32 = 180; // 3 minutes
+pub const COMMITMENT_PHASE_DURATION: u32 = 50; // 50 seconds
 pub const CONSENSUS_THRESHOLD: u32 = 1; // for the first iteration of development,
                                         // 2 nodes will be run and both must commit to the Consensus round
 
