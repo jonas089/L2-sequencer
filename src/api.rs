@@ -138,7 +138,13 @@ pub async fn propose(
                 }
             }
             Err(_) => {
-                eprintln!("[Warning] Invalid Signature for Round Winner, Block Proposal Rejected!");
+                println!(
+                    "{}",
+                    format!(
+                        "{} Invalid Signature for Round Winner, Proposal rejected",
+                        "[Warning]".yellow()
+                    )
+                );
                 return error_response;
             }
         }

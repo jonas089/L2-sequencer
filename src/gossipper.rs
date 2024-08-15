@@ -102,8 +102,14 @@ impl Gossipper {
                     .await
                 {
                     Ok(_) => {}
-                    Err(_) => eprintln!(
-                        "[Error] Peer unresponsive, gossipping consensus commitment to other peers"
+                    Err(_) => println!(
+                        "{}",
+                        format!(
+                            "{} Failed to send Consensus Commitment to peer: {}, {}",
+                            "[Red]".yellow(),
+                            &peer_clone,
+                            "Proceeding with other peers"
+                        )
                     ),
                 }
             });
