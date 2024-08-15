@@ -280,7 +280,7 @@ async fn test_schedule_transactions() {
         .unwrap();
     assert_eq!(
         response.text().await.unwrap(),
-        "Transaction is being sequenced: Transaction { data: [1, 2, 3, 4, 5], timestamp: 0 }"
+        "[Ok] Transaction is being sequenced: Transaction { data: [1, 2, 3, 4, 5], timestamp: 0 }"
     );
     // submit to other node aswell - since only the validator's pool will be included in the Block
     let _ = client

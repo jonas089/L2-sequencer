@@ -46,7 +46,7 @@ impl Gossipper {
                             .await
                             .text()
                             .await
-                            .unwrap();
+                            .unwrap_or("[Err] Peer unresponsive".to_string());
                     if response == "[Ok] Block was processed" {
                         println!(
                             "{}",
@@ -67,6 +67,16 @@ impl Gossipper {
                                 "Consensus has not concluded"
                             )
                         );
+                    } else if response == "[Err] Peer unresponsive" {
+                        println!(
+                            "{}",
+                            format!(
+                                "{} Failed to send Block to peer: {}, {}",
+                                "[Warning]".yellow(),
+                                &peer_clone,
+                                "Peer unresponsive"
+                            )
+                        );
                     }
                     sleep(Duration::from_secs(3)).await;
                 }
@@ -83,14 +93,19 @@ impl Gossipper {
                 continue;
             }
             tokio::spawn(async move {
-                let _ = client_clone
+                match client_clone
                     .post(format!("http://{}{}", &peer_clone, "/commit"))
                     .header("Content-Type", "application/json")
                     .body(json_commitment_clone)
                     .timeout(Duration::from_secs(30))
                     .send()
                     .await
-                    .unwrap();
+                {
+                    Ok(_) => {}
+                    Err(_) => eprintln!(
+                        "[Error] Peer unresponsive, gossipping consensus commitment to other peers"
+                    ),
+                }
             });
         }
     }

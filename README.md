@@ -64,6 +64,11 @@ than Block synchronization.
 
 To view a Block when running the example setup, request `127.0.0.1:8080/get/block/<id>`, or `127.0.0.1:8081/get/block/<id>`.
 
+# Peers going offline
+When peers go offline they will be ignored during the consensus phase. Should such a node re-join the network, then it will catch up with the valid Blocks that were generated
+during its downtime. The network will continue so long as sufficiently many nodes e.g. at least 2/3rds of the validator set are online and able to participate during
+the consensus phase. Should less than 2/3rds be available during the consensus phase, then currently there is a risk of the network getting stuck.
+
 # Merkle Commitments
 TBD
 
