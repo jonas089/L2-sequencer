@@ -46,8 +46,8 @@ fn choose_winner(mean_commitment: u64, commitments: Vec<ConsensusCommitment>) ->
         .1
         .last()
         .unwrap()
-        .clone() as i32
-            - mean_commitment as i32)
+        .clone() as i64
+            - mean_commitment as i64)
             .abs()
     });
     winner.unwrap().validator.clone()
