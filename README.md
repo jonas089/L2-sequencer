@@ -23,7 +23,7 @@ PoRD Nodes collect arbitrary Transactions and store them in a temporary database
 # Run basic E2E test with 2 Nodes (manually, in-memory)
 Split your terminal into 2 sessions and run:
 ```bash
-API_HOST_WITH_PORT=127.0.0.1:8081 cargo run
+API_HOST_WITH_PORT=127.0.0.1:8081 LOCAL_VALIDATOR=1 cargo run
 ```
 in Terminal A,
 

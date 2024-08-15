@@ -22,7 +22,7 @@ pub async fn schedule(
 ) -> String {
     let mut state = shared_state.lock().await;
     let success_response =
-        format!("Transaction is being sequenced: {:?}", &transaction).to_string();
+        format!("[Ok] Transaction is being sequenced: {:?}", &transaction).to_string();
     state.pool_state.insert_transaction(transaction);
     success_response
 }
@@ -32,7 +32,7 @@ pub async fn commit(
     Json(commitment): Json<ConsensusCommitment>,
 ) -> String {
     let mut state = shared_state.lock().await;
-    let success_response = format!("Commitment was accepted: {:?}", &commitment).to_string();
+    let success_response = format!("[Ok] Commitment was accepted: {:?}", &commitment).to_string();
     state.consensus_state.insert_commitment(commitment);
     success_response
 }
@@ -41,6 +41,7 @@ pub async fn propose(
     Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
     Json(mut proposal): Json<Block>,
 ) -> String {
+    println!("{}", format!("{} Proposal was received", "[Info]".green()));
     let mut state_lock: tokio::sync::MutexGuard<InMemoryServerState> = shared_state.lock().await;
     let error_response = format!("Block was rejected: {:?}", &proposal).to_string();
     // if the block is complete, store it and reset memory db
@@ -126,6 +127,14 @@ pub async fn propose(
                         .local_gossipper
                         .gossip_pending_block(proposal)
                         .await;
+                } else {
+                    println!(
+                        "{}",
+                        format!(
+                            "{} Block is signed but lacks commitments",
+                            "[Warning]".yellow()
+                        )
+                    );
                 }
             }
             Err(_) => {
@@ -133,8 +142,10 @@ pub async fn propose(
                 return error_response;
             }
         }
+        "[Ok] Block was processed".to_string()
+    } else {
+        "[Err] Awaiting consensus evaluation".to_string()
     }
-    "Ok".to_string()
 }
 
 pub async fn get_pool(

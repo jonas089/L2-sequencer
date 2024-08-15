@@ -5,7 +5,7 @@ use k256::ecdsa::{SigningKey, VerifyingKey};
 // specified in seconds
 pub const ACCUMULATION_PHASE_DURATION: u32 = 30; // 3 minutes
 pub const COMMITMENT_PHASE_DURATION: u32 = 10; // 50 seconds
-pub const CONSENSUS_THRESHOLD: u32 = 1; // for the first iteration of development,
+pub const CONSENSUS_THRESHOLD: u32 = 2; // for the first iteration of development,
                                         // 2 nodes will be run and both must commit to the Consensus round
 
 pub const TEST_V1_SK: &'static [u8] = &[

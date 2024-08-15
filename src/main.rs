@@ -125,6 +125,10 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
             "{}",
             format!("{} Gossipping Consensus Commitment", "[Info]".green())
         );
+        state_lock
+            .consensus_state
+            .commitments
+            .push(commitment.clone());
         let _ = state_lock
             .local_gossipper
             .gossip_consensus_commitment(commitment)

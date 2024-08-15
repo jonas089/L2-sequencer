@@ -1546,6 +1546,8 @@ dependencies = [
  "jsonrpsee-core",
  "k256",
  "lazy_static",
+ "num-bigint",
+ "num-traits",
  "prover",
  "rand_core",
  "reqwest 0.12.5",
