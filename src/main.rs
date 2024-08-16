@@ -221,7 +221,7 @@ async fn main() {
     );
     println!("{}", formatted_msg);
 
-    tokio::spawn({
+    let synchronization_task = tokio::spawn({
         let shared_state = Arc::clone(&shared_state);
         async move {
             loop {
@@ -231,13 +231,30 @@ async fn main() {
             }
         }
     });
-    tokio::spawn({
+    let consensus_task = tokio::spawn({
         let shared_state = Arc::clone(&shared_state);
         async move {
             loop {
                 consensus_loop(Arc::clone(&shared_state)).await;
                 tokio::time::sleep(Duration::from_secs(10)).await;
             }
+        }
+    });
+
+    tokio::spawn(async move {
+        tokio::select! {
+            res = synchronization_task => {
+                match res {
+                    Ok(_) => println!("{}", format!("{} Synchronization task concluded without error", "[Warning]".red())),
+                    Err(e) => println!("{}", format!("{} Synchronization task failed with error: {}", "[Error]".red(), e))
+                }
+            },
+            res = consensus_task => {
+                match res {
+                    Ok(_) => println!("{}", format!("{} Consensus task concluded without error", "[Warning]".red())),
+                    Err(e) => println!("{}", format!("{} Consensus task failed with error: {}", "[Error]".red(), e))
+                }
+            },
         }
     });
 

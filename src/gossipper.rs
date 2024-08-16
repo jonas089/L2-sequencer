@@ -106,7 +106,7 @@ impl Gossipper {
                         "{}",
                         format!(
                             "{} Failed to send Consensus Commitment to peer: {}, {}",
-                            "[Red]".yellow(),
+                            "[Warning]".yellow(),
                             &peer_clone,
                             "Proceeding with other peers"
                         )
