@@ -31,7 +31,9 @@ fn choose_winner(
     mean_commitment: BigInt,
     commitments: Vec<ConsensusCommitment>,
 ) -> GenericPublicKey {
-    let winner: Option<&ConsensusCommitment> = commitments.iter().min_by_key(|commitment| {
+    let mut winner: Option<GenericPublicKey> = None;
+    let mut lowest_distance: Option<BigInt> = None;
+    for (index, commitment) in commitments.into_iter().enumerate() {
         let value = random_bytes_to_int(
             &commitment
                 .receipt
@@ -40,9 +42,16 @@ fn choose_winner(
                 .unwrap()
                 .random_bytes,
         );
-        let distance = (value - mean_commitment.clone()).abs();
-        distance
-    });
-
-    winner.unwrap().validator.clone()
+        if index == 0 {
+            lowest_distance = Some((value - mean_commitment.clone()).abs());
+            winner = Some(commitment.validator.clone())
+        } else {
+            let distance = Some((value - mean_commitment.clone()).abs());
+            if distance < lowest_distance {
+                lowest_distance = distance;
+                winner = Some(commitment.validator.clone());
+            }
+        }
+    }
+    winner.unwrap()
 }

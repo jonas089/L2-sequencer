@@ -94,9 +94,13 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
         .get_block_by_height(state_lock.block_state.height)
         .timestamp;
     println!(
-        "Unix Timestamp: {} Target: {}",
-        unix_timestamp,
-        (last_block_unix_timestamp + config::consensus::ACCUMULATION_PHASE_DURATION)
+        "{}",
+        format!(
+            "{} Unix Timestamp: {} Target: {}",
+            "[Info]".green(),
+            unix_timestamp,
+            (last_block_unix_timestamp + config::consensus::ACCUMULATION_PHASE_DURATION)
+        )
     );
     if unix_timestamp > (last_block_unix_timestamp + config::consensus::ACCUMULATION_PHASE_DURATION)
         && !state_lock.consensus_state.proposed
