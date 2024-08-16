@@ -1,6 +1,6 @@
 use crate::types::{ConsensusCommitment, GenericPublicKey};
 use num_bigint::BigInt;
-use num_traits::cast::ToPrimitive;
+use num_traits::Signed;
 use zk_logic::{random_bytes_to_int, types::CircuitOutputs};
 
 /*
@@ -40,7 +40,7 @@ fn choose_winner(
                 .unwrap()
                 .random_bytes,
         );
-        let distance = value - mean_commitment.clone();
+        let distance = (value - mean_commitment.clone()).abs();
         distance
     });
 
