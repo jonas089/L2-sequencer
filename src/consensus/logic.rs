@@ -67,13 +67,12 @@ fn choose_winner(
                     .random_bytes,
             );
             if index == 0 {
-                lowest_distance = Some(value - mean_commitment.clone());
+                lowest_distance = Some(value);
                 winner = Some(commitment.validator.clone())
             } else {
-                let distance = Some(value - mean_commitment.clone());
                 // choose the lowest of the two by value e.g. (x, -x) => -x
-                if distance < lowest_distance {
-                    lowest_distance = distance;
+                if value < lowest_distance.clone().unwrap() {
+                    lowest_distance = Some(value);
                     winner = Some(commitment.validator.clone());
                 }
             }
