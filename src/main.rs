@@ -146,6 +146,8 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
             evaluate_commitments(state_lock.consensus_state.commitments.clone());
         state_lock.consensus_state.round_winner = Some(deserialize_vk(&round_winner));
         // if this node won the round it will propose the new Block
+        // currently there is no fallback in case the selected validator fails to propose
+        // this needs to be addressed to prevent the network from getting stuck
         let unix_timestamp = get_current_time();
         if round_winner
             == state_lock
