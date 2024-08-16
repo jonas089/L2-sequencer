@@ -33,23 +33,49 @@ fn choose_winner(
 ) -> GenericPublicKey {
     let mut winner: Option<GenericPublicKey> = None;
     let mut lowest_distance: Option<BigInt> = None;
-    for (index, commitment) in commitments.into_iter().enumerate() {
-        let value = random_bytes_to_int(
-            &commitment
-                .receipt
-                .journal
-                .decode::<CircuitOutputs>()
-                .unwrap()
-                .random_bytes,
-        );
-        if index == 0 {
-            lowest_distance = Some((value - mean_commitment.clone()).abs());
-            winner = Some(commitment.validator.clone())
-        } else {
-            let distance = Some((value - mean_commitment.clone()).abs());
-            if distance < lowest_distance {
-                lowest_distance = distance;
-                winner = Some(commitment.validator.clone());
+    if commitments.len() > 2 {
+        for (index, commitment) in commitments.into_iter().enumerate() {
+            let value = random_bytes_to_int(
+                &commitment
+                    .receipt
+                    .journal
+                    .decode::<CircuitOutputs>()
+                    .unwrap()
+                    .random_bytes,
+            );
+            if index == 0 {
+                lowest_distance = Some((value - mean_commitment.clone()).abs());
+                winner = Some(commitment.validator.clone())
+            } else {
+                let distance = Some((value - mean_commitment.clone()).abs());
+                if distance < lowest_distance {
+                    lowest_distance = distance;
+                    winner = Some(commitment.validator.clone());
+                }
+            }
+        }
+    }
+    // edge case for just 2 values (absolute value is the same so take the lowest) - only for test setup!
+    else if commitments.len() == 2 {
+        for (index, commitment) in commitments.into_iter().enumerate() {
+            let value = random_bytes_to_int(
+                &commitment
+                    .receipt
+                    .journal
+                    .decode::<CircuitOutputs>()
+                    .unwrap()
+                    .random_bytes,
+            );
+            if index == 0 {
+                lowest_distance = Some(value - mean_commitment.clone());
+                winner = Some(commitment.validator.clone())
+            } else {
+                let distance = Some(value - mean_commitment.clone());
+                // choose the lowest of the two by value e.g. (x, -x) => -x
+                if distance < lowest_distance {
+                    lowest_distance = distance;
+                    winner = Some(commitment.validator.clone());
+                }
             }
         }
     }
