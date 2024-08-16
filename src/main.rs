@@ -74,6 +74,7 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
                         let block_height = block.height;
                         state_lock.block_state.insert_block(next_height - 1, block);
                         state_lock.consensus_state.reinitialize(block_height + 1);
+                        // todo: insert block transations into trie
                         println!("{}", format!("{} Synchronized Block", "[Info]".green()));
                     }
                 }
@@ -245,13 +246,13 @@ async fn main() {
         tokio::select! {
             res = synchronization_task => {
                 match res {
-                    Ok(_) => println!("{}", format!("{} Synchronization task concluded without error", "[Warning]".red())),
+                    Ok(_) => println!("{}", format!("{} Synchronization task concluded without error", "[Warning]".yellow())),
                     Err(e) => println!("{}", format!("{} Synchronization task failed with error: {}", "[Error]".red(), e))
                 }
             },
             res = consensus_task => {
                 match res {
-                    Ok(_) => println!("{}", format!("{} Consensus task concluded without error", "[Warning]".red())),
+                    Ok(_) => println!("{}", format!("{} Consensus task concluded without error", "[Warning]".yellow())),
                     Err(e) => println!("{}", format!("{} Consensus task failed with error: {}", "[Error]".red(), e))
                 }
             },

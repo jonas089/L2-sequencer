@@ -1438,6 +1438,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
+name = "patricia-trie"
+version = "0.1.0"
+source = "git+https://github.com/jonas089/jonas089-trie#9bf3de054c8ea8b070103d3744085d8239c10424"
+dependencies = [
+ "bincode",
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1505,6 +1515,7 @@ dependencies = [
  "lazy_static",
  "num-bigint",
  "num-traits",
+ "patricia-trie",
  "prover",
  "rand_core",
  "reqwest",

@@ -100,6 +100,7 @@ pub async fn propose(
                         .block_state
                         .insert_block(previous_block_height, proposal.clone());
                     println!("{}", format!("{} Block was stored", "[Info]".green()));
+                    // todo: insert block transations into trie
                     state_lock
                         .consensus_state
                         .reinitialize(previous_block_height + 1);
