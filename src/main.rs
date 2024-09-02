@@ -17,10 +17,18 @@ use consensus::logic::evaluate_commitments;
 use crypto::ecdsa::deserialize_vk;
 use gossipper::Gossipper;
 use k256::ecdsa::{signature::SignerMut, Signature};
+use patricia_trie::{
+    insert_leaf,
+    store::{
+        db::InMemoryDB as InMemoryMerkleTrie,
+        types::{Leaf, Node, Root},
+    },
+};
 use prover::generate_random_number;
 use reqwest::{Client, Response};
 use state::server::{InMemoryBlockStore, InMemoryConsensus, InMemoryTransactionPool};
 use std::{
+    collections::HashMap,
     env,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
@@ -31,6 +39,8 @@ struct InMemoryServerState {
     block_state: InMemoryBlockStore,
     pool_state: InMemoryTransactionPool,
     consensus_state: InMemoryConsensus,
+    merkle_trie_state: InMemoryMerkleTrie,
+    merkle_trie_root: Root,
     local_gossipper: Gossipper,
 }
 
@@ -70,12 +80,38 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
                     if block_serialized != "[Warning] Requested Block that does not exist" {
                         let block: Block = serde_json::from_str(&block_serialized).unwrap();
                         let block_height = block.height;
-                        state_lock.block_state.insert_block(next_height - 1, block);
+                        state_lock
+                            .block_state
+                            .insert_block(next_height - 1, block.clone());
+                        // insert transactions into the trie
+                        let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
+                        for transaction in &block.transactions {
+                            // note that for now the key and value of the node are its data represented as bytes
+                            // in the future the key will be a uid of some sort e.g. the transaction hash
+                            let new_root = insert_leaf(
+                                &mut state_lock.merkle_trie_state,
+                                &mut Leaf::new(
+                                    transaction.data.clone(),
+                                    Some(transaction.data.clone()),
+                                ),
+                                root_node,
+                            );
+                            root_node = Node::Root(new_root);
+                        }
+                        // update in-memory trie root
+                        state_lock.merkle_trie_root = root_node.unwrap_as_root();
                         state_lock.consensus_state.reinitialize(block_height + 1);
-                        // todo: insert block transations into trie
                         println!(
                             "{}",
                             format_args!("{} Synchronized Block", "[Info]".green())
+                        );
+                        println!(
+                            "{}",
+                            format_args!(
+                                "{} New Trie Root: {:?}",
+                                "[Info]".green(),
+                                state_lock.merkle_trie_root.hash
+                            )
                         );
                     }
                 }
@@ -215,6 +251,10 @@ async fn main() {
     block_state.trigger_genesis(0u32);
     let pool_state: InMemoryTransactionPool = InMemoryTransactionPool::empty();
     let consensus_state: InMemoryConsensus = InMemoryConsensus::empty_with_default_validators(0);
+    let merkle_trie_state: InMemoryMerkleTrie = InMemoryMerkleTrie {
+        nodes: HashMap::new(),
+    };
+    let merkle_trie_root: Root = Root::empty();
     let local_gossipper: Gossipper = Gossipper {
         peers: PEERS.to_vec(),
         client: Client::new(),
@@ -223,6 +263,8 @@ async fn main() {
         block_state,
         pool_state,
         consensus_state,
+        merkle_trie_state,
+        merkle_trie_root,
         local_gossipper,
     }));
     let host_with_port = env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string());

@@ -6,6 +6,10 @@ use k256::ecdsa::{
     signature::{SignerMut, Verifier},
     Signature,
 };
+use patricia_trie::{
+    insert_leaf,
+    store::types::{Leaf, Node},
+};
 use tokio::sync::Mutex;
 
 use crate::{
@@ -105,7 +109,32 @@ pub async fn propose(
                     state_lock
                         .block_state
                         .insert_block(previous_block_height, proposal.clone());
+                    // insert transactions into the trie
+                    let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
+                    for transaction in &proposal.transactions {
+                        // note that for now the key and value of the node are its data represented as bytes
+                        // in the future the key will be a uid of some sort e.g. the transaction hash
+                        let new_root = insert_leaf(
+                            &mut state_lock.merkle_trie_state,
+                            &mut Leaf::new(
+                                transaction.data.clone(),
+                                Some(transaction.data.clone()),
+                            ),
+                            root_node,
+                        );
+                        root_node = Node::Root(new_root);
+                    }
+                    // update in-memory trie root
+                    state_lock.merkle_trie_root = root_node.unwrap_as_root();
                     println!("{}", format_args!("{} Block was stored", "[Info]".green()));
+                    println!(
+                        "{}",
+                        format_args!(
+                            "{} New Trie Root: {:?}",
+                            "[Info]".green(),
+                            state_lock.merkle_trie_root.hash
+                        )
+                    );
                     // todo: insert block transations into trie
                     state_lock
                         .consensus_state
