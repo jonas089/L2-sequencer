@@ -41,7 +41,10 @@ pub async fn propose(
     Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
     Json(mut proposal): Json<Block>,
 ) -> String {
-    println!("{}", format!("{} Proposal was received", "[Info]".green()));
+    println!(
+        "{}",
+        format_args!("{} Proposal was received", "[Info]".green())
+    );
     let mut state_lock: tokio::sync::MutexGuard<InMemoryServerState> = shared_state.lock().await;
     let error_response = format!("Block was rejected: {:?}", &proposal).to_string();
     // if the block is complete, store it and reset memory db
@@ -74,7 +77,7 @@ pub async fn propose(
                             Err(_) => {
                                 println!(
                                     "{}",
-                                    format!(
+                                    format_args!(
                                         "{} Invalid Commitment was Ignored",
                                         "[Warning]".yellow()
                                     )
@@ -93,13 +96,16 @@ pub async fn propose(
                     }
                 }
                 if commitment_count >= CONSENSUS_THRESHOLD {
-                    println!("{}", format!("{} Received Valid Block", "[Info]".green()));
+                    println!(
+                        "{}",
+                        format_args!("{} Received Valid Block", "[Info]".green())
+                    );
                     let previous_block_height = state_lock.block_state.height;
                     // todo: verify Block height
                     state_lock
                         .block_state
                         .insert_block(previous_block_height, proposal.clone());
-                    println!("{}", format!("{} Block was stored", "[Info]".green()));
+                    println!("{}", format_args!("{} Block was stored", "[Info]".green()));
                     // todo: insert block transations into trie
                     state_lock
                         .consensus_state
@@ -131,7 +137,7 @@ pub async fn propose(
                 } else {
                     println!(
                         "{}",
-                        format!(
+                        format_args!(
                             "{} Block is signed but lacks commitments",
                             "[Warning]".yellow()
                         )
@@ -141,7 +147,7 @@ pub async fn propose(
             Err(_) => {
                 println!(
                     "{}",
-                    format!(
+                    format_args!(
                         "{} Invalid Signature for Round Winner, Proposal rejected",
                         "[Warning]".yellow()
                     )
@@ -176,7 +182,7 @@ pub async fn get_block(
     let state_lock = shared_state.lock().await;
     println!(
         "{}",
-        format!("{} Trying to get Block #{}", "[Info]".green(), height)
+        format_args!("{} Trying to get Block #{}", "[Info]".green(), height)
     );
     if state_lock.block_state.height < height {
         "[Warning] Requested Block that does not exist".to_string()

@@ -51,7 +51,7 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
             client: Client::new(),
         };
         for peer in gossipper.peers {
-            if peer == &env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
+            if peer == env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
                 continue;
             }
             let response: Option<Response> = match gossipper
@@ -67,19 +67,23 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
             match response {
                 Some(response) => {
                     let block_serialized = response.text().await.unwrap();
-                    if block_serialized
-                        != "[Warning] Requested Block that does not exist".to_string()
-                    {
+                    if block_serialized != "[Warning] Requested Block that does not exist" {
                         let block: Block = serde_json::from_str(&block_serialized).unwrap();
                         let block_height = block.height;
                         state_lock.block_state.insert_block(next_height - 1, block);
                         state_lock.consensus_state.reinitialize(block_height + 1);
                         // todo: insert block transations into trie
-                        println!("{}", format!("{} Synchronized Block", "[Info]".green()));
+                        println!(
+                            "{}",
+                            format_args!("{} Synchronized Block", "[Info]".green())
+                        );
                     }
                 }
                 None => {
-                    println!("{}", format!("{} Resource is Busy", "[Warning]".yellow()))
+                    println!(
+                        "{}",
+                        format_args!("{} Resource is Busy", "[Warning]".yellow())
+                    )
                 }
             }
         }
@@ -95,7 +99,7 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
         .timestamp;
     println!(
         "{}",
-        format!(
+        format_args!(
             "{} Unix Timestamp: {} Target: {}",
             "[Info]".green(),
             unix_timestamp,
@@ -107,7 +111,7 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
     {
         println!(
             "{}",
-            format!("{} Generating ZK Random Number", "[Info]".green())
+            format_args!("{} Generating ZK Random Number", "[Info]".green())
         );
         // commit to consensus
         let random_zk_commitment = generate_random_number(
@@ -128,7 +132,7 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
         };
         println!(
             "{}",
-            format!("{} Gossipping Consensus Commitment", "[Info]".green())
+            format_args!("{} Gossipping Consensus Commitment", "[Info]".green())
         );
         state_lock
             .consensus_state
@@ -180,7 +184,10 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
                 .local_gossipper
                 .gossip_pending_block(proposed_block)
                 .await;
-            println!("{}", format!("{} Block was proposed", "[Info]".green()));
+            println!(
+                "{}",
+                format_args!("{} Block was proposed", "[Info]".green())
+            );
         }
         state_lock.consensus_state.committed = true;
     }
@@ -246,36 +253,45 @@ async fn main() {
         }
     });
 
-    tokio::spawn(async move {
-        tokio::select! {
-            res = synchronization_task => {
-                match res {
-                    Ok(_) => println!("{}", format!("{} Synchronization task concluded without error", "[Warning]".yellow())),
-                    Err(e) => println!("{}", format!("{} Synchronization task failed with error: {}", "[Error]".red(), e))
-                }
-            },
-            res = consensus_task => {
-                match res {
-                    Ok(_) => println!("{}", format!("{} Consensus task concluded without error", "[Warning]".yellow())),
-                    Err(e) => println!("{}", format!("{} Consensus task failed with error: {}", "[Error]".red(), e))
-                }
-            },
+    let api_task = tokio::spawn({
+        async move {
+            let api = Router::new()
+                .route("/get/pool", get(get_pool))
+                .route("/get/commitments", get(get_commitments))
+                .route("/get/block/:height", get(get_block))
+                .route("/schedule", post(schedule))
+                .route("/commit", post(commit))
+                .route("/propose", post(propose))
+                .layer(DefaultBodyLimit::max(10000000))
+                .layer(Extension(shared_state));
+
+            let listener = tokio::net::TcpListener::bind(&host_with_port)
+                .await
+                .unwrap();
+            axum::serve(listener, api).await.unwrap();
         }
     });
 
-    let api = Router::new()
-        .route("/get/pool", get(get_pool))
-        .route("/get/commitments", get(get_commitments))
-        .route("/get/block/:height", get(get_block))
-        .route("/schedule", post(schedule))
-        .route("/commit", post(commit))
-        .route("/propose", post(propose))
-        .layer(DefaultBodyLimit::max(10000000))
-        .layer(Extension(shared_state));
-    let listener = tokio::net::TcpListener::bind(&host_with_port)
-        .await
-        .unwrap();
-    axum::serve(listener, api).await.unwrap();
+    tokio::select! {
+        sync_task_res = synchronization_task => {
+            match sync_task_res {
+                Ok(_) => println!("{}", format_args!("{} Synchronization task concluded without error", "[Warning]".yellow())),
+                Err(e) => println!("{}", format_args!("{} Synchronization task failed with error: {}", "[Error]".red(), e))
+            }
+        },
+        consensus_task_res = consensus_task => {
+            match consensus_task_res {
+                Ok(_) => println!("{}", format_args!("{} Consensus task concluded without error", "[Warning]".yellow())),
+                Err(e) => println!("{}", format_args!("{} Consensus task failed with error: {}", "[Error]".red(), e))
+            }
+        },
+        api_task_res = api_task => {
+            match api_task_res{
+                Ok(_) => println!("{}", format_args!("{} API task concluded without error", "[Warning]".yellow())),
+                Err(e) => println!("{}", format_args!("{} API task failed with error: {}", "[Error]".red(), e))
+            }
+        }
+    }
 }
 
 pub fn get_current_time() -> u32 {
@@ -327,7 +343,7 @@ mod tests {
         let receipt = generate_random_number(vec![0; 32], vec![0; 32]);
         let consensus_commitment: ConsensusCommitment = ConsensusCommitment {
             validator: vec![0; 32],
-            receipt: receipt,
+            receipt,
         };
         let gossipper = Gossipper {
             peers: PEERS.to_vec(),

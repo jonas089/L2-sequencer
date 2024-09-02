@@ -27,6 +27,7 @@ pub fn evaluate_commitments(commitments: Vec<ConsensusCommitment>) -> GenericPub
     choose_winner(mean_commitment, commitments)
 }
 
+#[allow(clippy::comparison_chain)]
 fn choose_winner(
     mean_commitment: BigInt,
     commitments: Vec<ConsensusCommitment>,

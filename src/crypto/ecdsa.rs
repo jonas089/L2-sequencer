@@ -45,7 +45,7 @@ fn test_serialize_and_deserialize_sk() {
 #[test]
 fn test_serialize_and_deserialize_vk() {
     let keypair = Keypair::new();
-    let vk_before = keypair.vk.clone();
+    let vk_before = keypair.vk;
     let vk_serialized = keypair.serialize_vk();
     let vk_deserialized = deserialize_vk(&vk_serialized);
     assert_eq!(vk_before, vk_deserialized);

@@ -96,12 +96,11 @@ impl InMemoryConsensus {
     pub fn empty_with_default_validators(height: u32) -> InMemoryConsensus {
         use crate::config::consensus::{v1_vk_deserialized, v2_vk_deserialized};
         let local_validator_test_id = env::var("LOCAL_VALIDATOR").unwrap_or(0.to_string());
-        let local_validator: (SigningKey, VerifyingKey);
-        if local_validator_test_id == "0".to_string() {
-            local_validator = (v1_sk_deserialized(), v1_vk_deserialized());
+        let local_validator = if local_validator_test_id == "0" {
+            (v1_sk_deserialized(), v1_vk_deserialized())
         } else {
-            local_validator = (v2_sk_deserialized(), v2_vk_deserialized());
-        }
+            (v2_sk_deserialized(), v2_vk_deserialized())
+        };
         Self {
             height,
             validators: vec![v1_vk_deserialized(), v2_vk_deserialized()],

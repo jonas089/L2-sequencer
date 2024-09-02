@@ -8,9 +8,9 @@ use tokio::time::sleep;
 use crate::types::ConsensusCommitment;
 
 // gossip commitments to other nodes
-pub type PEER = &'static str;
+pub type Peer = &'static str;
 
-async fn send_proposal(client: Client, peer: PEER, json_block: String) -> Response {
+async fn send_proposal(client: Client, peer: Peer, json_block: String) -> Response {
     let response: Response = client
         .post(format!("http://{}{}", &peer, "/propose"))
         .header("Content-Type", "application/json")
@@ -23,21 +23,21 @@ async fn send_proposal(client: Client, peer: PEER, json_block: String) -> Respon
 }
 
 pub struct Gossipper {
-    pub peers: Vec<PEER>,
+    pub peers: Vec<Peer>,
     pub client: Client,
 }
 impl Gossipper {
     pub async fn gossip_pending_block(&self, block: Block) {
-        for peer in &self.peers {
+        for peer in self.peers.clone() {
             let client_clone = self.client.clone();
-            let peer_clone = peer.clone();
+            let peer_clone = peer;
             let json_block: String = serde_json::to_string(&block).unwrap();
-            if peer == &env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
+            if peer == env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
                 continue;
             }
             println!(
                 "{}",
-                format!("{} Sending Block to Peer: {}", "[Info]".green(), &peer)
+                format_args!("{} Sending Block to Peer: {}", "[Info]".green(), &peer)
             );
             tokio::spawn(async move {
                 loop {
@@ -50,7 +50,7 @@ impl Gossipper {
                     if response == "[Ok] Block was processed" {
                         println!(
                             "{}",
-                            format!(
+                            format_args!(
                                 "{} Block was successfully sent to peer: {}",
                                 "[Info]".green(),
                                 &peer_clone
@@ -60,7 +60,7 @@ impl Gossipper {
                     } else if response == "[Err] Awaiting consensus evaluation" {
                         println!(
                             "{}",
-                            format!(
+                            format_args!(
                                 "{} Failed to send Block to peer: {}, {}",
                                 "[Warning]".yellow(),
                                 &peer_clone,
@@ -70,7 +70,7 @@ impl Gossipper {
                     } else if response == "[Err] Peer unresponsive" {
                         println!(
                             "{}",
-                            format!(
+                            format_args!(
                                 "{} Failed to send Block to peer: {}, {}",
                                 "[Warning]".yellow(),
                                 &peer_clone,
@@ -85,11 +85,11 @@ impl Gossipper {
     }
     pub async fn gossip_consensus_commitment(&self, commitment: ConsensusCommitment) {
         let json_commitment: String = serde_json::to_string(&commitment).unwrap();
-        for peer in &self.peers {
+        for peer in self.peers.clone() {
             let client_clone = self.client.clone();
-            let peer_clone = peer.clone();
+            let peer_clone = peer;
             let json_commitment_clone: String = json_commitment.clone();
-            if peer == &env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
+            if peer == env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
                 continue;
             }
             tokio::spawn(async move {
@@ -104,7 +104,7 @@ impl Gossipper {
                     Ok(_) => {}
                     Err(_) => println!(
                         "{}",
-                        format!(
+                        format_args!(
                             "{} Failed to send Consensus Commitment to peer: {}, {}",
                             "[Warning]".yellow(),
                             &peer_clone,
