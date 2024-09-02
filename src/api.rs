@@ -137,7 +137,6 @@ pub async fn propose(
                             state_lock.merkle_trie_root.hash
                         )
                     );
-                    // todo: insert block transations into trie
                     state_lock
                         .consensus_state
                         .reinitialize(previous_block_height + 1);
