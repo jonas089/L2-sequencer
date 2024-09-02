@@ -20,6 +20,13 @@ It was pointed out that the ZK Random number generator can be replaced with a ge
 # How does PoRD-SQ work?
 PoRD Nodes collect arbitrary Transactions and store them in a temporary database (a transaction pool). Every era the PoRD consensus ceremony is held to select a validator from the fixed validator set to create the next Block. This selection process is based on perfectly deterministic, yet difficult to predict, Zero Knowledge random numbers | VRF numbers.
 
+# How could I use this sequencer for my L2 Blockchain Project?
+Should you intend to use this sequencer in production, then it is advisable to fork it, audit it extensively and replace the in-memory storage. I take no liability for any incomplete or incorrect implementations, including flaws in my code. This project is provided "as-is" and all use is at own risk.
+
+When setting up a PoRD-SQ network it is essential to choose a trustworthy set of validators. E.g. several trusted and independent entities that have an interest in honest node operation.
+
+The highes risk of PoRD-SQ is probably a network outage e.g. Nodes failing to re-join or the network being stuck due to insufficient committing notes. Make sure these issues are addressed and minimize networking risks before using this sequencer in production. I'm doing the best I can but that is likely not enough!
+
 # Run basic E2E test with 2 Nodes (manually, in-memory)
 Split your terminal into 2 sessions and run:
 ```bash
