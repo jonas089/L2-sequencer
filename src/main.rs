@@ -21,10 +21,11 @@ use patricia_trie::{
     insert_leaf,
     store::{
         db::InMemoryDB as InMemoryMerkleTrie,
-        types::{Leaf, Node, Root},
+        types::{Hashable, Key, Leaf, Node, Root},
     },
 };
 use prover::generate_random_number;
+use rand::Rng;
 use reqwest::{Client, Response};
 use state::server::{InMemoryBlockStore, InMemoryConsensus, InMemoryTransactionPool};
 use std::{
@@ -86,14 +87,16 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
                         // insert transactions into the trie
                         let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
                         for transaction in &block.transactions {
-                            // note that for now the key and value of the node are its data represented as bytes
-                            // in the future the key will be a uid of some sort e.g. the transaction hash
+                            let mut leaf = Leaf::new(
+                                generate_random_trie_key(),
+                                Some(transaction.data.clone()),
+                            );
+                            leaf.hash();
+                            // note that for now the key is random, this must be changed to a uid
+                            // a uid could for example be the transaction hash, represented as a 256 bit array
                             let new_root = insert_leaf(
                                 &mut state_lock.merkle_trie_state,
-                                &mut Leaf::new(
-                                    transaction.data.clone(),
-                                    Some(transaction.data.clone()),
-                                ),
+                                &mut leaf,
                                 root_node,
                             );
                             root_node = Node::Root(new_root);
@@ -372,6 +375,11 @@ async fn test_schedule_transactions() {
         .send()
         .await
         .unwrap();
+}
+
+pub fn generate_random_trie_key() -> Key {
+    let mut rng = rand::thread_rng();
+    (0..256).map(|_| rng.gen_range(0..1)).collect()
 }
 
 #[cfg(test)]
