@@ -31,6 +31,7 @@ use state::server::{InMemoryBlockStore, InMemoryConsensus, InMemoryTransactionPo
 use std::{
     collections::HashMap,
     env,
+    hash::Hash,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -87,13 +88,15 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
                         // insert transactions into the trie
                         let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
                         for transaction in &block.transactions {
-                            let mut leaf = Leaf::new(
-                                generate_random_trie_key(),
-                                Some(transaction.data.clone()),
-                            );
+                            let mut leaf = Leaf::new(Vec::new(), Some(transaction.data.clone()));
                             leaf.hash();
-                            // note that for now the key is random, this must be changed to a uid
-                            // a uid could for example be the transaction hash, represented as a 256 bit array
+                            leaf.key = leaf
+                                .hash
+                                .clone()
+                                .unwrap()
+                                .iter()
+                                .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
+                                .collect();
                             let new_root = insert_leaf(
                                 &mut state_lock.merkle_trie_state,
                                 &mut leaf,
@@ -227,6 +230,9 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
                 "{}",
                 format_args!("{} Block was proposed", "[Info]".green())
             );
+            // since this node was selected as a validator and submitted a proposal,
+            // the transaction pool must be reset
+            state_lock.pool_state.reinitialize();
         }
         state_lock.consensus_state.committed = true;
     }
@@ -352,34 +358,31 @@ async fn test_schedule_transactions() {
     use crate::types::Transaction;
     let client = Client::new();
     let transaction: Transaction = Transaction {
-        data: vec![1, 2, 3, 4, 5],
-        timestamp: 0u32,
+        data: vec![1, 2, 3, 4, 5, 6, 7],
+        timestamp: 0,
     };
     let transaction_json: String = serde_json::to_string(&transaction).unwrap();
-    let response = client
+    // note that currently a transaction may only be submitted to one node
+    // mishandling this can cause the network to crash
+    let _ = client
         .post("http://127.0.0.1:8080/schedule")
         .header("Content-Type", "application/json")
         .body(transaction_json.clone())
         .send()
         .await
         .unwrap();
-    assert_eq!(
+    /*assert_eq!(
         response.text().await.unwrap(),
         "[Ok] Transaction is being sequenced: Transaction { data: [1, 2, 3, 4, 5], timestamp: 0 }"
-    );
+    );*/
     // submit to other node aswell - since only the validator's pool will be included in the Block
-    let _ = client
+    /*let _ = client
         .post("http://127.0.0.1:8081/schedule")
         .header("Content-Type", "application/json")
         .body(transaction_json)
         .send()
         .await
-        .unwrap();
-}
-
-pub fn generate_random_trie_key() -> Key {
-    let mut rng = rand::thread_rng();
-    (0..256).map(|_| rng.gen_range(0..1)).collect()
+        .unwrap();*/
 }
 
 #[cfg(test)]

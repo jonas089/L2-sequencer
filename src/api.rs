@@ -13,7 +13,11 @@ use patricia_trie::{
 use tokio::sync::Mutex;
 
 use crate::{
-    config::consensus::CONSENSUS_THRESHOLD, crypto::ecdsa::deserialize_vk, generate_random_trie_key, get_current_time, types::{Block, BlockCommitment, ConsensusCommitment, GenericSignature, Transaction}, InMemoryServerState
+    config::consensus::CONSENSUS_THRESHOLD,
+    crypto::ecdsa::deserialize_vk,
+    get_current_time,
+    types::{Block, BlockCommitment, ConsensusCommitment, GenericSignature, Transaction},
+    InMemoryServerState,
 };
 
 pub async fn schedule(
@@ -108,18 +112,20 @@ pub async fn propose(
                     // insert transactions into the trie
                     let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
                     for transaction in &proposal.transactions {
-                        let mut leaf = Leaf::new(
-                            generate_random_trie_key(),
-                            Some(transaction.data.clone()),
-                        );
+                        let mut leaf = Leaf::new(Vec::new(), Some(transaction.data.clone()));
                         leaf.hash();
+                        leaf.key = leaf
+                            .hash
+                            .clone()
+                            .unwrap()
+                            .iter()
+                            .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
+                            .collect();
+
                         // note that for now the key and value of the node are its data represented as bytes
                         // in the future the key will be a uid of some sort e.g. the transaction hash
-                        let new_root = insert_leaf(
-                            &mut state_lock.merkle_trie_state,
-                            &mut leaf,
-                            root_node,
-                        );
+                        let new_root =
+                            insert_leaf(&mut state_lock.merkle_trie_state, &mut leaf, root_node);
                         root_node = Node::Root(new_root);
                     }
                     // update in-memory trie root
