@@ -122,8 +122,6 @@ pub async fn propose(
                             .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
                             .collect();
 
-                        // note that for now the key and value of the node are its data represented as bytes
-                        // in the future the key will be a uid of some sort e.g. the transaction hash
                         let new_root =
                             insert_leaf(&mut state_lock.merkle_trie_state, &mut leaf, root_node);
                         root_node = Node::Root(new_root);
