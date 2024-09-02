@@ -70,9 +70,6 @@ during its downtime. The network will continue so long as sufficiently many node
 the consensus phase. Should less than >50% be available during the consensus phase, then currently there is a risk of the network getting stuck.
 
 # Merkle Commitments
-*Merkle Commitments are yet to be implemented, I am working on them.*
-Whenever a Block is accepted, all transactions in that block are inserted into the custom [Merkle Patricia Trie](https://github.com/jonas089/jonas089-trie).
-The Key for each transaction is a hash over its body (in the future nonces should be appended to handle duplicates | or duplicates should be rejected | or duplicates replace existing transactions).
+Whenever a Block is stored, all transactions in that block are inserted into the custom [Merkle Patricia Trie](https://github.com/jonas089/jonas089-trie).
 
-Todo: Merkle Proofs against a root hash can be requested from the API. The Node must maintain the Root History and serve proofs on demand.
-
+My Trie library supports Merkle Proofs which will be exposed by the sequencer API - inclusion can be proven for individual transactions.
