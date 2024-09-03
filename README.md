@@ -41,10 +41,10 @@ in Terminal B
 This will start the Network and initiate the Block generation process:
 ![example](https://github.com/jonas089/PoRD-sequencer/blob/master/resources/demo.png)
 
-To submit an example Transaction to both nodes, run:
+To submit an example Transaction that will lead to a new Merkle Root being computed, run:
 
 ```bash
-cargo test test_schedule_transactions
+cargo test test_schedule_transaction
 ```
 
 Note that currently only the Transactions stored in the Block-creating validator's pool are included in the block.
