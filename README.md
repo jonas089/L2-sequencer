@@ -25,7 +25,7 @@ Should you intend to use this sequencer in production, then it is advisable to f
 
 When setting up a PoRD-SQ network it is essential to choose a trustworthy set of validators. E.g. several trusted and independent entities that have an interest in honest node operation.
 
-The highes risk of PoRD-SQ is probably a network outage e.g. Nodes failing to re-join or the network being stuck due to insufficient committing notes. Make sure these issues are addressed and minimize networking risks before using this sequencer in production. I'm doing the best I can but that is likely not enough!
+The highest risk of PoRD-SQ is probably a network outage e.g. Nodes failing to re-join or the network being stuck due to insufficient committing notes. Make sure these issues are addressed and minimize networking risks before using this sequencer in production. I'm doing the best I can but that is likely not enough!
 
 # Run basic E2E test with 2 Nodes (manually, in-memory)
 Split your terminal into 2 sessions and run:
