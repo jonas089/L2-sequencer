@@ -61,12 +61,14 @@ than Block synchronization.
         .route("/schedule", post(schedule))
         .route("/commit", post(commit))
         .route("/propose", post(propose))
+        .route("/merkle_proof", post(merkle_proof))
 ```
 ## External
 ```rust
         .route("/get/pool", get(get_pool))
         .route("/get/commitments", get(get_commitments))
         .route("/get/block/:height", get(get_block))
+        .route("/get/state_root_hash", get(state_root_hash))
 ```
 
 To view a Block when running the example setup, request `127.0.0.1:8080/get/block/<id>`, or `127.0.0.1:8081/get/block/<id>`.
@@ -76,7 +78,62 @@ When peers go offline they will be ignored during the consensus phase. Should su
 during its downtime. The network will continue so long as sufficiently many nodes e.g. at least >50% of the validator set are online and able to participate during
 the consensus phase. Should less than >50% be available during the consensus phase, then currently there is a risk of the network getting stuck.
 
-# Merkle Commitments
+# Merkle Proofs
 Whenever a Block is stored, all transactions in that block are inserted into the custom [Merkle Patricia Trie](https://github.com/jonas089/jonas089-trie).
 
-My Trie library supports Merkle Proofs which will be exposed by the sequencer API - inclusion can be proven for individual transactions.
+My Trie library supports merkle proofs which will be exposed by the sequencer API - inclusion can be proven for individual transactions.
+
+Each Transaction has a `Key` that is unique. The `Key` is generated like this:
+
+```rust
+        let mut leaf = Leaf::new(Vec::new(), Some(transaction.data.clone()));
+        leaf.hash();
+        leaf.key = leaf
+            .hash
+            .clone()
+            .unwrap()
+            .iter()
+            .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
+            .collect();
+        leaf.hash();
+        let transaction_key_json = serde_json::to_string(&leaf.key).unwrap();
+        let merkle_proof_response = client
+            .post("http://127.0.0.1:8080/merkle_proof")
+            .header("Content-Type", "application/json")
+            .body(transaction_key_json)
+            .send()
+            .await
+            .unwrap();
+```
+
+The example above includes a request that will obtain a merkle proof for the Transaction that belongs to this `Key`.
+
+The merkle proof can be verified against the Root Hash of the Trie that it was requested for:
+
+```rust
+        ...
+        let transaction_key_json = serde_json::to_string(&leaf.key).unwrap();
+        let merkle_proof_response = client
+            .post("http://127.0.0.1:8080/merkle_proof")
+            .header("Content-Type", "application/json")
+            .body(transaction_key_json)
+            .send()
+            .await
+            .unwrap();
+        let merkle_proof_json = merkle_proof_response.text().await.unwrap();
+        let merkle_proof: MerkleProof = serde_json::from_str(&merkle_proof_json).unwrap();
+        let state_root_hash_response = client
+            .get("http://127.0.0.1:8080/get/state_root_hash")
+            .send()
+            .await
+            .unwrap();
+        let state_root_hash: Root =
+            serde_json::from_str(&state_root_hash_response.text().await.unwrap()).unwrap();
+        let mut inner_proof = merkle_proof.nodes;
+        inner_proof.reverse();
+        println!("Inner Proof: {:?}", &inner_proof);
+        verify_merkle_proof(inner_proof, state_root_hash.hash.unwrap());
+        ...
+```
+
+Note that `verify_merkle_proof` will revert if the merkle proof is invalid / doesn't sum up to the provided Trie Root.
