@@ -9,8 +9,7 @@ that are overly complex with respect to consensus (and tokenomics). Having revie
 "work-in-progress" repositories, I decided that we want something more straightforward and are willing to compromize the
 degree of decentralization.
 
-In my personal opinion [PoRD](https://github.com/jonas089/PoRD) establishes a good balance of decentralization and 
-simplicity. Because of this I have decided to implement a general-purpose node on top of the PoRD abstract / "whitepaper" - I know that at the time of writing PoRD is not 
+In my personal opinion [PoRD](https://github.com/jonas089/PoRD) establishes an accessible distributed > decentralized solution. Because of this I have decided to implement a general-purpose node on top of the PoRD abstract / "whitepaper" - I know that at the time of writing PoRD is not 
 mathematically sophisticated enough to be called a real "whitepaper" - anyways, this is a functional approach with reasonable security guarantees, not a theoretically bulletproof one.
 
 It was pointed out that the ZK Random number generator can be replaced with a general VRF, I am researching this and might choose to replace the ZK Randomness with a VRF if it makes sense (as it will likely be faster).
