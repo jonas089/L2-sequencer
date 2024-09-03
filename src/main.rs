@@ -192,8 +192,8 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
         > (last_block_unix_timestamp
             + config::consensus::ACCUMULATION_PHASE_DURATION
             + config::consensus::COMMITMENT_PHASE_DURATION)
-            // this is an issue, since this can include invalid commitments, todo: check the commitments first!
-        && state_lock.consensus_state.commitments.len() as u32 >= CONSENSUS_THRESHOLD && !state_lock.consensus_state.committed
+        && state_lock.consensus_state.commitments.len() as u32 >= CONSENSUS_THRESHOLD
+        && !state_lock.consensus_state.committed
     {
         let round_winner: GenericPublicKey =
             evaluate_commitments(state_lock.consensus_state.commitments.clone());

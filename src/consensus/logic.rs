@@ -3,10 +3,6 @@ use num_bigint::BigInt;
 use num_traits::Signed;
 use zk_logic::{random_bytes_to_int, types::CircuitOutputs};
 
-/*
-    PoRD was changed to, instead of evaluating the closest commitment to the mean
-    timestamp, find the closest commitment to the mean commitments
-*/
 pub fn evaluate_commitments(commitments: Vec<ConsensusCommitment>) -> GenericPublicKey {
     // todo: verify the associated signatures
     let commitment_values = {

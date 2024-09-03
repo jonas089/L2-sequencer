@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::{extract::Path, Extension, Json};
 use colored::Colorize;
 use k256::ecdsa::{
@@ -10,6 +8,7 @@ use patricia_trie::{
     insert_leaf,
     store::types::{Hashable, Leaf, Node},
 };
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::{
