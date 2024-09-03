@@ -25,6 +25,11 @@ impl Keypair {
         self.vk.to_sec1_bytes().to_vec()
     }
 }
+impl Default for Keypair {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 pub fn deserialize_sk(sk_serialized: &[u8]) -> SigningKey {
     SigningKey::from_bytes(sk_serialized.into()).unwrap()
