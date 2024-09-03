@@ -5,7 +5,10 @@ mod crypto;
 mod gossipper;
 mod state;
 mod types;
-use api::{commit, get_block, get_commitments, get_pool, propose, schedule};
+use api::{
+    commit, get_block, get_commitments, get_pool, get_state_root_hash, merkle_proof, propose,
+    schedule,
+};
 use axum::{
     extract::DefaultBodyLimit,
     routing::{get, post},
@@ -21,17 +24,15 @@ use patricia_trie::{
     insert_leaf,
     store::{
         db::InMemoryDB as InMemoryMerkleTrie,
-        types::{Hashable, Key, Leaf, Node, Root},
+        types::{Hashable, Leaf, Node, Root},
     },
 };
 use prover::generate_random_number;
-use rand::Rng;
 use reqwest::{Client, Response};
 use state::server::{InMemoryBlockStore, InMemoryConsensus, InMemoryTransactionPool};
 use std::{
     collections::HashMap,
     env,
-    hash::Hash,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -97,6 +98,7 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
                                 .iter()
                                 .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
                                 .collect();
+                            leaf.hash();
                             let new_root = insert_leaf(
                                 &mut state_lock.merkle_trie_state,
                                 &mut leaf,
@@ -310,9 +312,11 @@ async fn main() {
                 .route("/get/pool", get(get_pool))
                 .route("/get/commitments", get(get_commitments))
                 .route("/get/block/:height", get(get_block))
+                .route("/get/state_root_hash", get(get_state_root_hash))
                 .route("/schedule", post(schedule))
                 .route("/commit", post(commit))
                 .route("/propose", post(propose))
+                .route("/merkle_proof", post(merkle_proof))
                 .layer(DefaultBodyLimit::max(10000000))
                 .layer(Extension(shared_state));
 
@@ -353,44 +357,82 @@ pub fn get_current_time() -> u32 {
     since_the_epoch.as_secs() as u32
 }
 
-#[tokio::test]
-async fn test_schedule_transactions() {
-    use crate::types::Transaction;
-    let client = Client::new();
-    let transaction: Transaction = Transaction {
-        data: vec![1, 2, 3, 4, 5, 6, 7],
-        timestamp: 0,
-    };
-    let transaction_json: String = serde_json::to_string(&transaction).unwrap();
-    // note that currently a transaction may only be submitted to one node
-    // mishandling this can cause the network to crash
-    let _ = client
-        .post("http://127.0.0.1:8080/schedule")
-        .header("Content-Type", "application/json")
-        .body(transaction_json.clone())
-        .send()
-        .await
-        .unwrap();
-    /*assert_eq!(
-        response.text().await.unwrap(),
-        "[Ok] Transaction is being sequenced: Transaction { data: [1, 2, 3, 4, 5], timestamp: 0 }"
-    );*/
-    // submit to other node aswell - since only the validator's pool will be included in the Block
-    /*let _ = client
-        .post("http://127.0.0.1:8081/schedule")
-        .header("Content-Type", "application/json")
-        .body(transaction_json)
-        .send()
-        .await
-        .unwrap();*/
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{config::network::PEERS, gossipper::Gossipper, types::ConsensusCommitment};
+    use patricia_trie::{
+        merkle::{verify_merkle_proof, MerkleProof},
+        store::types::{Hashable, Leaf, Root},
+    };
     use prover::generate_random_number;
     use reqwest::Client;
     use std::env;
+
+    #[tokio::test]
+    async fn test_schedule_transaction() {
+        use crate::types::Transaction;
+        let client = Client::new();
+        let transaction: Transaction = Transaction {
+            data: vec![1, 2, 3, 4, 5],
+            timestamp: 0,
+        };
+        let transaction_json: String = serde_json::to_string(&transaction).unwrap();
+        // note that currently a transaction may only be submitted to one node
+        // mishandling this can cause the network to crash
+        let response = client
+            .post("http://127.0.0.1:8080/schedule")
+            .header("Content-Type", "application/json")
+            .body(transaction_json.clone())
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(
+            response.text().await.unwrap(),
+            "[Ok] Transaction is being sequenced: Transaction { data: [1, 2, 3, 4, 5], timestamp: 0 }"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_request_merkle_proof() {
+        use crate::types::Transaction;
+        let client = Client::new();
+        let transaction: Transaction = Transaction {
+            data: vec![1, 2, 3, 4, 5],
+            timestamp: 0,
+        };
+        let mut leaf = Leaf::new(Vec::new(), Some(transaction.data.clone()));
+        leaf.hash();
+        leaf.key = leaf
+            .hash
+            .clone()
+            .unwrap()
+            .iter()
+            .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
+            .collect();
+        leaf.hash();
+        let transaction_key_json = serde_json::to_string(&leaf.key).unwrap();
+        let merkle_proof_response = client
+            .post("http://127.0.0.1:8080/merkle_proof")
+            .header("Content-Type", "application/json")
+            .body(transaction_key_json)
+            .send()
+            .await
+            .unwrap();
+        let merkle_proof_json = merkle_proof_response.text().await.unwrap();
+        let merkle_proof: MerkleProof = serde_json::from_str(&merkle_proof_json).unwrap();
+        let state_root_hash_response = client
+            .get("http://127.0.0.1:8080/get/state_root_hash")
+            .send()
+            .await
+            .unwrap();
+        let state_root_hash: Root =
+            serde_json::from_str(&state_root_hash_response.text().await.unwrap()).unwrap();
+        let mut inner_proof = merkle_proof.nodes;
+        inner_proof.reverse();
+        println!("Inner Proof: {:?}", &inner_proof);
+        verify_merkle_proof(inner_proof, state_root_hash.hash.unwrap());
+    }
+
     #[tokio::test]
     async fn test_commit() {
         let receipt = generate_random_number(vec![0; 32], vec![0; 32]);

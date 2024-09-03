@@ -1434,7 +1434,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 [[package]]
 name = "patricia-trie"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/jonas089-trie#9bf3de054c8ea8b070103d3744085d8239c10424"
+source = "git+https://github.com/jonas089/jonas089-trie#e7ee80036d1e6514eec2706bdf948160a82c41b0"
 dependencies = [
  "bincode",
  "serde",
@@ -1595,7 +1595,7 @@ dependencies = [
 [[package]]
 name = "prover"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/PoRD#0e19956347a69e37a0cf846e6def8b4c2eee7bc1"
+source = "git+https://github.com/jonas089/PoRD#dc8096f40e2e0b2bbe2d37b2215313e70dd61c5c"
 dependencies = [
  "rand",
  "risc0-zkvm",
@@ -1607,9 +1607,9 @@ dependencies = [
 
 [[package]]
 name = "quinn"
-version = "0.11.4"
+version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a2d2fb862b7ba45e615c1429def928f2e15f815bdf933b27a2d3824e224c1f46"
+checksum = "8c7c5fdde3cdae7203427dc4f0a68fe0ed09833edc525a03456b153b79828684"
 dependencies = [
  "bytes",
  "pin-project-lite",
@@ -1625,9 +1625,9 @@ dependencies = [
 
 [[package]]
 name = "quinn-proto"
-version = "0.11.7"
+version = "0.11.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea0a9b3a42929fad8a7c3de7f86ce0814cfa893328157672680e9fb1145549c5"
+checksum = "fadfaed2cd7f389d0161bb73eeb07b7b78f8691047a6f3e73caaeae55310a4a6"
 dependencies = [
  "bytes",
  "rand",
@@ -1642,15 +1642,15 @@ dependencies = [
 
 [[package]]
 name = "quinn-udp"
-version = "0.5.4"
+version = "0.5.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8bffec3605b73c6f1754535084a85229fa8a30f86014e6c81aeec4abb68b0285"
+checksum = "4fe68c2e9e1a1234e218683dbdf9f9dfcb094113c5ac2b938dfcb9bab4c4140b"
 dependencies = [
  "libc",
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3000,7 +3000,7 @@ dependencies = [
 [[package]]
 name = "zk-logic"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/PoRD#0e19956347a69e37a0cf846e6def8b4c2eee7bc1"
+source = "git+https://github.com/jonas089/PoRD#dc8096f40e2e0b2bbe2d37b2215313e70dd61c5c"
 dependencies = [
  "num-bigint",
  "serde",
@@ -3010,7 +3010,7 @@ dependencies = [
 [[package]]
 name = "zk-methods"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/PoRD#0e19956347a69e37a0cf846e6def8b4c2eee7bc1"
+source = "git+https://github.com/jonas089/PoRD#dc8096f40e2e0b2bbe2d37b2215313e70dd61c5c"
 dependencies = [
  "risc0-build",
 ]

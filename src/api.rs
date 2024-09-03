@@ -121,6 +121,7 @@ pub async fn propose(
                             .iter()
                             .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
                             .collect();
+                        leaf.hash();
 
                         let new_root =
                             insert_leaf(&mut state_lock.merkle_trie_state, &mut leaf, root_node);
@@ -191,6 +192,23 @@ pub async fn propose(
     }
 }
 
+pub async fn merkle_proof(
+    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
+    Json(key): Json<Vec<u8>>,
+) -> String {
+    let mut state_lock: tokio::sync::MutexGuard<InMemoryServerState> = shared_state.lock().await;
+    let trie_root = state_lock.merkle_trie_root.clone();
+    let merkle_proof = patricia_trie::merkle::merkle_proof(
+        &mut state_lock.merkle_trie_state,
+        key,
+        Node::Root(trie_root),
+    );
+    match merkle_proof {
+        Some(merkle_proof) => serde_json::to_string(&merkle_proof).unwrap(),
+        None => "[Err] Failed to generate Merkle Proof for Transaction".to_string(),
+    }
+}
+
 pub async fn get_pool(
     Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
 ) -> String {
@@ -217,6 +235,19 @@ pub async fn get_block(
     if state_lock.block_state.height < height {
         "[Warning] Requested Block that does not exist".to_string()
     } else {
-        serde_json::to_string(&state_lock.block_state.get_block_by_height(height)).unwrap()
+        match serde_json::to_string(&state_lock.block_state.get_block_by_height(height)) {
+            Ok(height_json) => height_json,
+            Err(e) => e.to_string(),
+        }
+    }
+}
+
+pub async fn get_state_root_hash(
+    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
+) -> String {
+    let state_lock = shared_state.lock().await;
+    match serde_json::to_string(&state_lock.merkle_trie_root) {
+        Ok(trie_root_json) => trie_root_json,
+        Err(e) => e.to_string(),
     }
 }
