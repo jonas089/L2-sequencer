@@ -183,7 +183,6 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
             "{}",
             format_args!("{} Generating ZK Random Number", "[Info]".green())
         );
-        // commit to consensus
         let random_zk_commitment = generate_random_number(
             state_lock
                 .consensus_state
@@ -198,7 +197,7 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
                 .local_validator
                 .to_sec1_bytes()
                 .to_vec(),
-            receipt: random_zk_commitment, // to be added: Signature
+            receipt: random_zk_commitment,
         };
         println!(
             "{}",
@@ -225,8 +224,6 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
             evaluate_commitments(state_lock.consensus_state.commitments.clone());
         state_lock.consensus_state.round_winner = Some(deserialize_vk(&round_winner));
         // if this node won the round it will propose the new Block
-        // currently there is no fallback in case the selected validator fails to propose
-        // this needs to be addressed to prevent the network from getting stuck
         let unix_timestamp = get_current_time();
         if round_winner
             == state_lock
@@ -256,7 +253,7 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
             proposed_block.signature = Some(signature.to_bytes().to_vec());
             let _ = state_lock
                 .local_gossipper
-                .gossip_pending_block(proposed_block)
+                .gossip_pending_block(proposed_block, state_lock.block_state.height)
                 .await;
             println!(
                 "{}",

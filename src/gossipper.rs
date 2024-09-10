@@ -1,33 +1,38 @@
 use std::{env, time::Duration};
 
-use crate::types::Block;
+use crate::{config::consensus::COMMITMENT_PHASE_DURATION, types::Block};
 use colored::Colorize;
 use reqwest::{Client, Response};
 use tokio::time::sleep;
 
 use crate::types::ConsensusCommitment;
 
-// gossip commitments to other nodes
 pub type Peer = &'static str;
+
+pub struct Gossipper {
+    pub peers: Vec<Peer>,
+    pub client: Client,
+}
 
 async fn send_proposal(client: Client, peer: Peer, json_block: String) -> Response {
     let response: Response = client
         .post(format!("http://{}{}", &peer, "/propose"))
         .header("Content-Type", "application/json")
         .body(json_block)
-        .timeout(Duration::from_secs(30))
+        .timeout(Duration::from_secs(3))
         .send()
         .await
         .unwrap();
     response
 }
 
-pub struct Gossipper {
-    pub peers: Vec<Peer>,
-    pub client: Client,
-}
 impl Gossipper {
-    pub async fn gossip_pending_block(&self, block: Block) {
+    pub async fn gossip_pending_block(&self, block: Block, height: u32) {
+        // try to collect attestations for the proposal and
+        // store it eventually (if it reaches the threshold)
+        // stop porposing before the new round begins
+        // the new round will either introduce a new block,
+        // or attempt to recreate this one
         for peer in self.peers.clone() {
             let client_clone = self.client.clone();
             let peer_clone = peer;
@@ -45,6 +50,9 @@ impl Gossipper {
             );
             tokio::spawn(async move {
                 loop {
+                    if block.timestamp < height + COMMITMENT_PHASE_DURATION {
+                        break;
+                    }
                     let response =
                         send_proposal(client_clone.clone(), peer_clone, json_block.clone())
                             .await

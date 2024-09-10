@@ -16,7 +16,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::{
-    config::consensus::CONSENSUS_THRESHOLD,
+    config::consensus::{COMMITMENT_PHASE_DURATION, CONSENSUS_THRESHOLD},
     crypto::ecdsa::deserialize_vk,
     get_current_time,
     types::{Block, BlockCommitment, ConsensusCommitment, GenericSignature, Transaction},
@@ -53,7 +53,19 @@ pub async fn propose(
         format_args!("{} Proposal was Proposal was received", "[Info]".green())
     );
     let mut state_lock: tokio::sync::MutexGuard<ServerState> = shared_state.lock().await;
+    let last_block_unix_timestamp = state_lock
+        .block_state
+        .get_block_by_height(state_lock.block_state.height)
+        .timestamp;
     let error_response = format!("Block was rejected: {:?}", &proposal).to_string();
+
+    if proposal.timestamp < last_block_unix_timestamp + COMMITMENT_PHASE_DURATION {
+        return error_response;
+    };
+    if state_lock.block_state.height >= proposal.height {
+        return error_response;
+    }
+
     // if the block is complete, store it and reset memory db
     // if the block is incomplete, attest to it (in case this node hasn't yet done that)
     // and gossip it
@@ -166,7 +178,7 @@ pub async fn propose(
                     }
                     let _ = state_lock
                         .local_gossipper
-                        .gossip_pending_block(proposal)
+                        .gossip_pending_block(proposal, state_lock.block_state.height)
                         .await;
                 } else {
                     println!(
