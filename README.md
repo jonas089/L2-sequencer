@@ -24,7 +24,7 @@ When setting up a PoRD-SQ network it is essential to choose a trustworthy set of
 
 The highest risk of PoRD-SQ is probably a network outage e.g. Nodes failing to re-join or the network being stuck due to insufficient committing notes. Make sure these issues are addressed and minimize networking risks before using this sequencer in production. I'm doing the best I can but that is likely not enough!
 
-# Docker and SQLite Support
+# Run an sqlite Network Automatically: Docker Support
 I began taking this passion project quite serious, so I added an SQLite DB to store Blocks and Transactions.
 Transactions are still read as a single chunk so the txpool for each Block must fit in memory, I do intend to change this.
 
@@ -38,7 +38,7 @@ docker compose up
 Port forwarding should make the nodes available a `8080` and `8081`. I plan to simulate larger networks in the future but for now it is designed
 to spawn 2 instances that synchronize blocks and commit to proposals / contribute to consensus. The default consensus threshold is `1` - see `config` directory.
 
-# Run basic E2E test with 2 Nodes (manually, in-memory)
+# Run an in-memory Network manually: E2E test with 2 Nodes (manually, in-memory)
 Split your terminal into 2 sessions and run:
 ```bash
 API_HOST_WITH_PORT=127.0.0.1:8081 LOCAL_VALIDATOR=1 cargo run

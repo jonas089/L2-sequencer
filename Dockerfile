@@ -1,21 +1,27 @@
-# Use an official Rust image as a base image
+# Use the Rust official image
 FROM rust:1.81.0
 
-# Set the working directory inside the container
+# Set the working directory
 WORKDIR /usr/src/app
 
-# Install the necessary tools for building the risc0 toolchain
-RUN apt-get update && apt-get install -y curl
+# Install necessary dependencies
+RUN apt-get update && apt-get install -y curl cmake ninja-build python3
 
-# Install cargo-binstall (used to install cargo-risczero)
+# Install cargo-binstall
 RUN cargo install cargo-binstall
 
-# Install the risc0 toolchain using cargo-risczero
+# Install cargo-risczero using binstall
 RUN cargo binstall cargo-risczero -y
-RUN cargo risczero install
+
+# Build the risc0 toolchain
+RUN cargo risczero build-toolchain
 
 # Copy the entire Rust project into the container
 COPY . .
+
+RUN rustup toolchain install nightly
+
+RUN rustup default nightly
 
 # Build the Rust project with the necessary feature
 RUN cargo build --release --features sqlite
