@@ -162,7 +162,7 @@ impl SqLiteTransactionPool for TransactionPool {
         let conn = Connection::open(&self.db_path).unwrap();
         conn.execute(
             "CREATE TABLE IF NOT EXISTS txns (
-                uid INTEGER PRIMARY KEY AUTOINCREMENT,
+                uid BLOB PRIMARY KEY,
                 tx BLOB NOT NULL
             )",
             [],
@@ -217,8 +217,8 @@ impl SqLiteTransactionPool for TransactionPool {
         // todo: remove when reading size from db
         self.size = 0;
         let conn = Connection::open(&self.db_path).unwrap();
-
         conn.execute("DROP TABLE IF EXISTS txns", []).unwrap();
+        self.setup();
     }
 }
 

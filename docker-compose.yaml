@@ -1,0 +1,32 @@
+version: "3.9"
+services:
+  rust-node-1:
+    container_name: rust-node-1
+    build: .
+    restart: always
+    user: "1000:1000"
+    environment:
+      - PATH_TO_DB=node-1.sqlite
+    networks:
+      - rust-net
+    ports:
+      - "8080:8080"
+
+  rust-node-2:
+    container_name: rust-node-2
+    build: .
+    restart: always
+    user: "1000:1000"
+    environment:
+      - PATH_TO_DB=node-2.sqlite
+      - API_HOST_WITH_PORT=127.0.0.1:8081
+      - LOCAL_VALIDATOR=1
+    networks:
+      - rust-net
+    ports:
+      - "8081:8081"
+
+networks:
+  rust-net:
+    name: rust-net
+    driver: bridge
