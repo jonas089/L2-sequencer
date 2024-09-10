@@ -183,7 +183,7 @@ pub async fn propose(
                     "{}",
                     format_args!(
                         "{} Invalid Signature for Round Winner, Proposal rejected",
-                        "[Warning]".yellow()
+                        "[Warning]".yellow(),
                     )
                 );
                 return error_response;

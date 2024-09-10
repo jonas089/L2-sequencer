@@ -32,7 +32,11 @@ impl Gossipper {
             let client_clone = self.client.clone();
             let peer_clone = peer;
             let json_block: String = serde_json::to_string(&block).unwrap();
-            if peer == env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
+            // todo: make this generic for n amount of nodes
+            let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
+            if this_node == "0.0.0.0:8080" && peer == "rust-node-1:8080" {
+                continue;
+            } else if this_node == "0.0.0.0:8081" && peer == "rust-node-2:8080" {
                 continue;
             }
             println!(
@@ -89,7 +93,12 @@ impl Gossipper {
             let client_clone = self.client.clone();
             let peer_clone = peer;
             let json_commitment_clone: String = json_commitment.clone();
-            if peer == env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
+
+            // todo: make this generic for n amount of nodes
+            let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
+            if this_node == "0.0.0.0:8080" && peer == "rust-node-1:8080" {
+                continue;
+            } else if this_node == "0.0.0.0:8081" && peer == "rust-node-2:8080" {
                 continue;
             }
             tokio::spawn(async move {

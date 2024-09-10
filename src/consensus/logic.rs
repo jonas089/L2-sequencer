@@ -11,6 +11,7 @@ pub fn evaluate_commitments(commitments: Vec<ConsensusCommitment>) -> GenericPub
             let commitment_value: CircuitOutputs = commitment.receipt.journal.decode().unwrap();
             commitment_values.push(random_bytes_to_int(&commitment_value.random_bytes));
         }
+        println!("Commitment Values: {:?}", &commitment_values);
         commitment_values
     };
     let mean_commitment = {

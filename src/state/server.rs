@@ -290,6 +290,14 @@ impl InMemoryConsensus {
         }
     }
     pub fn insert_commitment(&mut self, commitment: ConsensusCommitment) {
+        // this is an inconvenient check, Receipt does not implement ParitalEq
+        // come up with a better solution in the future
+        // luckily the list of consensus commitments will be relatively small in memory
+        for c in &self.commitments {
+            if c.validator == commitment.validator {
+                return;
+            }
+        }
         self.commitments.push(commitment);
     }
     pub fn reinitialize(&mut self, height: u32) {

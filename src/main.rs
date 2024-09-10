@@ -82,7 +82,11 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
             client: Client::new(),
         };
         for peer in gossipper.peers {
-            if peer == env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string()) {
+            // todo: make this generic for n amount of nodes
+            let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
+            if this_node == "0.0.0.0:8080" && peer == "rust-node-1:8080" {
+                continue;
+            } else if this_node == "0.0.0.0:8081" && peer == "rust-node-2:8080" {
                 continue;
             }
             let response: Option<Response> = match gossipper
@@ -258,8 +262,6 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
                 "{}",
                 format_args!("{} Block was proposed", "[Info]".green())
             );
-            // since this node was selected as a validator and submitted a proposal,
-            // the transaction pool must be reset
             state_lock.pool_state.reinitialize();
         }
         state_lock.consensus_state.committed = true;
@@ -308,7 +310,6 @@ async fn main() {
             db_path: env::var("PATH_TO_DB").unwrap_or("database.sqlite".to_string()),
         };
         pool_state.setup();
-        println!("Created Table for Pool");
         pool_state
     };
     let consensus_state: InMemoryConsensus = InMemoryConsensus::empty_with_default_validators(0);
@@ -334,7 +335,7 @@ async fn main() {
         merkle_trie_root,
         local_gossipper,
     }));
-    let host_with_port = env::var("API_HOST_WITH_PORT").unwrap_or("127.0.0.1:8080".to_string());
+    let host_with_port = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
     let formatted_msg = format!(
         "{}{}",
         "Starting Node: ".green().italic(),

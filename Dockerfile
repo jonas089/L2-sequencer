@@ -22,5 +22,9 @@ COPY . .
 # Build the Rust project with the necessary feature
 RUN cargo build --release --features sqlite
 
+RUN mkdir -p /var/data/
+
+RUN chmod -R 777 /var/data/
+
 # Set the entrypoint to run the compiled binary
 CMD ["./target/release/pord-sequencer"]
