@@ -1,5 +1,5 @@
 # Use the Rust official image
-FROM rust:1.81.0
+FROM rust:latest
 
 # Set the working directory
 WORKDIR /usr/src/app
@@ -14,14 +14,10 @@ RUN cargo install cargo-binstall
 RUN cargo binstall cargo-risczero -y
 
 # Build the risc0 toolchain
-RUN cargo risczero build-toolchain
+RUN cargo risczero build-toolchain --version v2024-04-22.0
 
 # Copy the entire Rust project into the container
 COPY . .
-
-RUN rustup toolchain install nightly
-
-RUN rustup default nightly
 
 # Build the Rust project with the necessary feature
 RUN cargo build --release --features sqlite

@@ -20,13 +20,24 @@ use consensus::logic::evaluate_commitments;
 use crypto::ecdsa::deserialize_vk;
 use gossipper::Gossipper;
 use k256::ecdsa::{signature::SignerMut, Signature};
+
+#[cfg(feature = "sqlite")]
 use patricia_trie::{
     insert_leaf,
     store::{
-        db::InMemoryDB as InMemoryMerkleTrie,
+        db::sql::TrieDB as MerkleTrieDB,
         types::{Hashable, Leaf, Node, Root},
     },
 };
+#[cfg(not(feature = "sqlite"))]
+use patricia_trie::{
+    insert_leaf,
+    store::{
+        db::TrieDB as MerkleTrieDB,
+        types::{Hashable, Leaf, Node, Root},
+    },
+};
+
 use prover::generate_random_number;
 use reqwest::{Client, Response};
 #[cfg(not(feature = "sqlite"))]
@@ -49,7 +60,7 @@ struct ServerState {
     block_state: BlockStore,
     pool_state: TransactionPool,
     consensus_state: InMemoryConsensus,
-    merkle_trie_state: InMemoryMerkleTrie,
+    merkle_trie_state: MerkleTrieDB,
     merkle_trie_root: Root,
     local_gossipper: Gossipper,
 }
@@ -301,8 +312,14 @@ async fn main() {
         pool_state
     };
     let consensus_state: InMemoryConsensus = InMemoryConsensus::empty_with_default_validators(0);
-    let merkle_trie_state: InMemoryMerkleTrie = InMemoryMerkleTrie {
+    #[cfg(not(feature = "sqlite"))]
+    let merkle_trie_state: MerkleTrieDB = MerkleTrieDB {
         nodes: HashMap::new(),
+    };
+    #[cfg(feature = "sqlite")]
+    let merkle_trie_state: MerkleTrieDB = MerkleTrieDB {
+        path: env::var("PATH_TO_DB").unwrap_or("database.sqlite".to_string()),
+        cache: None,
     };
     let merkle_trie_root: Root = Root::empty();
     let local_gossipper: Gossipper = Gossipper {
