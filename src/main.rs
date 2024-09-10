@@ -251,9 +251,13 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
             let mut signing_key = state_lock.consensus_state.local_signing_key.clone();
             let signature: Signature = signing_key.sign(&proposed_block.to_bytes());
             proposed_block.signature = Some(signature.to_bytes().to_vec());
+            let last_block_unix_timestamp = state_lock
+                .block_state
+                .get_block_by_height(state_lock.block_state.height)
+                .timestamp;
             let _ = state_lock
                 .local_gossipper
-                .gossip_pending_block(proposed_block, state_lock.block_state.height)
+                .gossip_pending_block(proposed_block, last_block_unix_timestamp)
                 .await;
             println!(
                 "{}",

@@ -12,6 +12,7 @@ use patricia_trie::{
     insert_leaf,
     store::types::{Hashable, Leaf, Node},
 };
+use pord_sequencer::config::consensus::ACCUMULATION_PHASE_DURATION;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -59,10 +60,12 @@ pub async fn propose(
         .timestamp;
     let error_response = format!("Block was rejected: {:?}", &proposal).to_string();
 
-    if proposal.timestamp < last_block_unix_timestamp + COMMITMENT_PHASE_DURATION {
+    if proposal.timestamp
+        < last_block_unix_timestamp + COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION
+    {
         return error_response;
     };
-    if state_lock.block_state.height >= proposal.height {
+    if state_lock.block_state.height != proposal.height - 1 {
         return error_response;
     }
 

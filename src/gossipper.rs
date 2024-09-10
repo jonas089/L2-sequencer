@@ -27,7 +27,7 @@ async fn send_proposal(client: Client, peer: Peer, json_block: String) -> Respon
 }
 
 impl Gossipper {
-    pub async fn gossip_pending_block(&self, block: Block, height: u32) {
+    pub async fn gossip_pending_block(&self, block: Block, last_block_timestamp: u32) {
         // try to collect attestations for the proposal and
         // store it eventually (if it reaches the threshold)
         // stop porposing before the new round begins
@@ -50,7 +50,7 @@ impl Gossipper {
             );
             tokio::spawn(async move {
                 loop {
-                    if block.timestamp < height + COMMITMENT_PHASE_DURATION {
+                    if block.timestamp < last_block_timestamp + COMMITMENT_PHASE_DURATION {
                         break;
                     }
                     let response =
