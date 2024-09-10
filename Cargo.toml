@@ -25,3 +25,8 @@ lazy_static = "1.5.0"
 num-bigint = "0.4.6"
 num-traits = "0.2.19"
 rand = "0.8.5"
+rusqlite = { version = "0.32", optional = true }
+
+
+[features]
+sqlite = ["rusqlite", "patricia-trie/sqlite"]

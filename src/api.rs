@@ -1,3 +1,7 @@
+#[cfg(not(feature = "sqlite"))]
+use crate::state::server::{InMemoryBlockStore, InMemoryTransactionPool};
+#[cfg(feature = "sqlite")]
+use crate::state::server::{SqLiteBlockStore, SqLiteTransactionPool};
 use axum::{extract::Path, Extension, Json};
 use colored::Colorize;
 use k256::ecdsa::{
@@ -16,11 +20,11 @@ use crate::{
     crypto::ecdsa::deserialize_vk,
     get_current_time,
     types::{Block, BlockCommitment, ConsensusCommitment, GenericSignature, Transaction},
-    InMemoryServerState,
+    ServerState,
 };
 
 pub async fn schedule(
-    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
+    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
     Json(transaction): Json<Transaction>,
 ) -> String {
     let mut state = shared_state.lock().await;
@@ -31,7 +35,7 @@ pub async fn schedule(
 }
 
 pub async fn commit(
-    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
+    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
     Json(commitment): Json<ConsensusCommitment>,
 ) -> String {
     let mut state = shared_state.lock().await;
@@ -41,14 +45,14 @@ pub async fn commit(
 }
 
 pub async fn propose(
-    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
+    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
     Json(mut proposal): Json<Block>,
 ) -> String {
     println!(
         "{}",
-        format_args!("{} Proposal was received", "[Info]".green())
+        format_args!("{} Proposal was Proposal was received", "[Info]".green())
     );
-    let mut state_lock: tokio::sync::MutexGuard<InMemoryServerState> = shared_state.lock().await;
+    let mut state_lock: tokio::sync::MutexGuard<ServerState> = shared_state.lock().await;
     let error_response = format!("Block was rejected: {:?}", &proposal).to_string();
     // if the block is complete, store it and reset memory db
     // if the block is incomplete, attest to it (in case this node hasn't yet done that)
@@ -192,10 +196,10 @@ pub async fn propose(
 }
 
 pub async fn merkle_proof(
-    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
+    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
     Json(key): Json<Vec<u8>>,
 ) -> String {
-    let mut state_lock: tokio::sync::MutexGuard<InMemoryServerState> = shared_state.lock().await;
+    let mut state_lock: tokio::sync::MutexGuard<ServerState> = shared_state.lock().await;
     let trie_root = state_lock.merkle_trie_root.clone();
     let merkle_proof = patricia_trie::merkle::merkle_proof(
         &mut state_lock.merkle_trie_state,
@@ -208,22 +212,29 @@ pub async fn merkle_proof(
     }
 }
 
-pub async fn get_pool(
-    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
-) -> String {
+pub async fn get_pool(Extension(shared_state): Extension<Arc<Mutex<ServerState>>>) -> String {
     let state = shared_state.lock().await;
-    format!("{:?}", state.pool_state.transactions)
+
+    #[cfg(not(feature = "sqlite"))]
+    {
+        format!("{:?}", state.pool_state.transactions)
+    }
+
+    #[cfg(feature = "sqlite")]
+    {
+        format!("{:?}", state.pool_state.get_all_transactions())
+    }
 }
 
 pub async fn get_commitments(
-    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
+    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
 ) -> String {
     let state_lock = shared_state.lock().await;
     format!("{:?}", state_lock.consensus_state.commitments)
 }
 
 pub async fn get_block(
-    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
+    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
     Path(height): Path<u32>,
 ) -> String {
     let state_lock = shared_state.lock().await;
@@ -242,7 +253,7 @@ pub async fn get_block(
 }
 
 pub async fn get_state_root_hash(
-    Extension(shared_state): Extension<Arc<Mutex<InMemoryServerState>>>,
+    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
 ) -> String {
     let state_lock = shared_state.lock().await;
     match serde_json::to_string(&state_lock.merkle_trie_root) {

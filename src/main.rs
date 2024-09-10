@@ -29,7 +29,14 @@ use patricia_trie::{
 };
 use prover::generate_random_number;
 use reqwest::{Client, Response};
-use state::server::{InMemoryBlockStore, InMemoryConsensus, InMemoryTransactionPool};
+#[cfg(not(feature = "sqlite"))]
+use state::server::{InMemoryBlockStore, InMemoryTransactionPool};
+
+#[cfg(feature = "sqlite")]
+use patricia_trie::store::db::{sql, Database};
+use state::server::{BlockStore, InMemoryConsensus, TransactionPool};
+#[cfg(feature = "sqlite")]
+use state::server::{SqLiteBlockStore, SqLiteTransactionPool};
 use std::{
     collections::HashMap,
     env,
@@ -38,16 +45,16 @@ use std::{
 };
 use tokio::sync::Mutex;
 use types::{Block, ConsensusCommitment, GenericPublicKey};
-struct InMemoryServerState {
-    block_state: InMemoryBlockStore,
-    pool_state: InMemoryTransactionPool,
+struct ServerState {
+    block_state: BlockStore,
+    pool_state: TransactionPool,
     consensus_state: InMemoryConsensus,
     merkle_trie_state: InMemoryMerkleTrie,
     merkle_trie_root: Root,
     local_gossipper: Gossipper,
 }
 
-async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
+async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
     let mut state_lock = database.lock().await;
     let last_block_unix_timestamp = state_lock
         .block_state
@@ -88,7 +95,11 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
                             .insert_block(next_height - 1, block.clone());
                         // insert transactions into the trie
                         let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
-                        for transaction in &block.transactions {
+                        #[cfg(not(feature = "sqlite"))]
+                        let transactions = &block.transactions;
+                        #[cfg(feature = "sqlite")]
+                        let transactions = &state_lock.pool_state.get_all_transactions();
+                        for transaction in transactions {
                             let mut leaf = Leaf::new(Vec::new(), Some(transaction.data.clone()));
                             leaf.hash();
                             leaf.key = leaf
@@ -134,7 +145,7 @@ async fn synchronization_loop(database: Arc<Mutex<InMemoryServerState>>) {
     }
 }
 
-async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
+async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
     let unix_timestamp = get_current_time();
     let mut state_lock = state.lock().await;
     let last_block_unix_timestamp = state_lock
@@ -209,15 +220,19 @@ async fn consensus_loop(state: Arc<Mutex<InMemoryServerState>>) {
                 .to_sec1_bytes()
                 .to_vec()
         {
+            #[cfg(not(feature = "sqlite"))]
+            let transactions = state_lock
+                .pool_state
+                .transactions
+                .values()
+                .cloned()
+                .collect();
+            #[cfg(feature = "sqlite")]
+            let transactions = state_lock.pool_state.get_all_transactions();
             let mut proposed_block = Block {
-                height: state_lock.consensus_state.height,
+                height: state_lock.consensus_state.height + 1,
                 signature: None,
-                transactions: state_lock
-                    .pool_state
-                    .transactions
-                    .values()
-                    .cloned()
-                    .collect(),
+                transactions,
                 commitments: None,
                 timestamp: unix_timestamp,
             };
@@ -258,9 +273,33 @@ async fn main() {
             .italic()
             .magenta()
     );
-    let mut block_state: InMemoryBlockStore = InMemoryBlockStore::empty();
+    #[cfg(feature = "sqlite")]
+    let mut block_state = {
+        let block_state: BlockStore = BlockStore {
+            height: 0,
+            db_path: env::var("PATH_TO_DB").unwrap_or("database.sqlite".to_string()),
+        };
+        block_state.setup();
+        block_state
+    };
+    #[cfg(not(feature = "sqlite"))]
+    let mut block_state = {
+        let block_state: BlockStore = BlockStore::empty();
+        block_state
+    };
     block_state.trigger_genesis(0u32);
-    let pool_state: InMemoryTransactionPool = InMemoryTransactionPool::empty();
+    #[cfg(not(feature = "sqlite"))]
+    let pool_state: TransactionPool = TransactionPool::empty();
+    #[cfg(feature = "sqlite")]
+    let pool_state: TransactionPool = {
+        let pool_state: TransactionPool = TransactionPool {
+            size: 0,
+            db_path: env::var("PATH_TO_DB").unwrap_or("database.sqlite".to_string()),
+        };
+        pool_state.setup();
+        println!("Created Table for Pool");
+        pool_state
+    };
     let consensus_state: InMemoryConsensus = InMemoryConsensus::empty_with_default_validators(0);
     let merkle_trie_state: InMemoryMerkleTrie = InMemoryMerkleTrie {
         nodes: HashMap::new(),
@@ -270,7 +309,7 @@ async fn main() {
         peers: PEERS.to_vec(),
         client: Client::new(),
     };
-    let shared_state: Arc<Mutex<InMemoryServerState>> = Arc::new(Mutex::new(InMemoryServerState {
+    let shared_state: Arc<Mutex<ServerState>> = Arc::new(Mutex::new(ServerState {
         block_state,
         pool_state,
         consensus_state,
