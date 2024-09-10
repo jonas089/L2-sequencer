@@ -67,94 +67,81 @@ struct ServerState {
 
 async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
     let mut state_lock = database.lock().await;
-    let last_block_unix_timestamp = state_lock
-        .block_state
-        .get_block_by_height(state_lock.block_state.height)
-        .timestamp;
-    if get_current_time()
-        > last_block_unix_timestamp
-            + config::consensus::ACCUMULATION_PHASE_DURATION
-            + config::consensus::COMMITMENT_PHASE_DURATION
-    {
-        let next_height = state_lock.consensus_state.height + 1;
-        let gossipper = Gossipper {
-            peers: PEERS.to_vec(),
-            client: Client::new(),
+    let next_height = state_lock.consensus_state.height + 1;
+    let gossipper = Gossipper {
+        peers: PEERS.to_vec(),
+        client: Client::new(),
+    };
+    for peer in gossipper.peers {
+        // todo: make this generic for n amount of nodes
+        let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
+        if this_node == "0.0.0.0:8080" && peer == "rust-node-1:8080" {
+            continue;
+        } else if this_node == "0.0.0.0:8081" && peer == "rust-node-2:8080" {
+            continue;
+        }
+        let response: Option<Response> = match gossipper
+            .client
+            .get(format!("http://{}{}{}", &peer, "/get/block/", next_height))
+            .timeout(Duration::from_secs(3))
+            .send()
+            .await
+        {
+            Ok(response) => Some(response),
+            Err(_) => None,
         };
-        for peer in gossipper.peers {
-            // todo: make this generic for n amount of nodes
-            let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
-            if this_node == "0.0.0.0:8080" && peer == "rust-node-1:8080" {
-                continue;
-            } else if this_node == "0.0.0.0:8081" && peer == "rust-node-2:8080" {
-                continue;
-            }
-            let response: Option<Response> = match gossipper
-                .client
-                .get(format!("http://{}{}{}", &peer, "/get/block/", next_height))
-                .timeout(Duration::from_secs(3))
-                .send()
-                .await
-            {
-                Ok(response) => Some(response),
-                Err(_) => None,
-            };
-            match response {
-                Some(response) => {
-                    let block_serialized = response.text().await.unwrap();
-                    if block_serialized != "[Warning] Requested Block that does not exist" {
-                        let block: Block = serde_json::from_str(&block_serialized).unwrap();
-                        let block_height = block.height;
-                        state_lock
-                            .block_state
-                            .insert_block(next_height - 1, block.clone());
-                        // insert transactions into the trie
-                        let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
-                        #[cfg(not(feature = "sqlite"))]
-                        let transactions = &block.transactions;
-                        #[cfg(feature = "sqlite")]
-                        let transactions = &state_lock.pool_state.get_all_transactions();
-                        for transaction in transactions {
-                            let mut leaf = Leaf::new(Vec::new(), Some(transaction.data.clone()));
-                            leaf.hash();
-                            leaf.key = leaf
-                                .hash
-                                .clone()
-                                .unwrap()
-                                .iter()
-                                .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
-                                .collect();
-                            leaf.hash();
-                            let new_root = insert_leaf(
-                                &mut state_lock.merkle_trie_state,
-                                &mut leaf,
-                                root_node,
-                            );
-                            root_node = Node::Root(new_root);
-                        }
-                        // update in-memory trie root
-                        state_lock.merkle_trie_root = root_node.unwrap_as_root();
-                        state_lock.consensus_state.reinitialize(block_height + 1);
-                        println!(
-                            "{}",
-                            format_args!("{} Synchronized Block", "[Info]".green())
-                        );
-                        println!(
-                            "{}",
-                            format_args!(
-                                "{} New Trie Root: {:?}",
-                                "[Info]".green(),
-                                state_lock.merkle_trie_root.hash
-                            )
-                        );
+        match response {
+            Some(response) => {
+                let block_serialized = response.text().await.unwrap();
+                if block_serialized != "[Warning] Requested Block that does not exist" {
+                    let block: Block = serde_json::from_str(&block_serialized).unwrap();
+                    let block_height = block.height;
+                    state_lock
+                        .block_state
+                        .insert_block(next_height - 1, block.clone());
+                    // insert transactions into the trie
+                    let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
+                    #[cfg(not(feature = "sqlite"))]
+                    let transactions = &block.transactions;
+                    #[cfg(feature = "sqlite")]
+                    let transactions = &state_lock.pool_state.get_all_transactions();
+                    for transaction in transactions {
+                        let mut leaf = Leaf::new(Vec::new(), Some(transaction.data.clone()));
+                        leaf.hash();
+                        leaf.key = leaf
+                            .hash
+                            .clone()
+                            .unwrap()
+                            .iter()
+                            .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
+                            .collect();
+                        leaf.hash();
+                        let new_root =
+                            insert_leaf(&mut state_lock.merkle_trie_state, &mut leaf, root_node);
+                        root_node = Node::Root(new_root);
                     }
-                }
-                None => {
+                    // update in-memory trie root
+                    state_lock.merkle_trie_root = root_node.unwrap_as_root();
+                    state_lock.consensus_state.reinitialize(block_height + 1);
                     println!(
                         "{}",
-                        format_args!("{} Resource is Busy", "[Warning]".yellow())
-                    )
+                        format_args!("{} Synchronized Block", "[Info]".green())
+                    );
+                    println!(
+                        "{}",
+                        format_args!(
+                            "{} New Trie Root: {:?}",
+                            "[Info]".green(),
+                            state_lock.merkle_trie_root.hash
+                        )
+                    );
                 }
+            }
+            None => {
+                println!(
+                    "{}",
+                    format_args!("{} Resource is Busy", "[Warning]".yellow())
+                )
             }
         }
     }
