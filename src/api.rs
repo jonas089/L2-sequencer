@@ -39,9 +39,18 @@ pub async fn commit(
     Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
     Json(commitment): Json<ConsensusCommitment>,
 ) -> String {
-    let mut state = shared_state.lock().await;
+    let mut state_lock = shared_state.lock().await;
     let success_response = format!("[Ok] Commitment was accepted: {:?}", &commitment).to_string();
-    state.consensus_state.insert_commitment(commitment);
+    let last_block_unix_timestamp: u32 = state_lock
+        .block_state
+        .get_block_by_height(state_lock.block_state.height - 1)
+        .timestamp;
+    let round = (get_current_time() - last_block_unix_timestamp)
+        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION)
+        + 1;
+    state_lock
+        .consensus_state
+        .insert_commitment(commitment, round - 1);
     success_response
 }
 
@@ -56,19 +65,29 @@ pub async fn propose(
     let mut state_lock: tokio::sync::MutexGuard<ServerState> = shared_state.lock().await;
     let last_block_unix_timestamp = state_lock
         .block_state
-        .get_block_by_height(state_lock.block_state.height)
+        .get_block_by_height(state_lock.block_state.height - 1)
         .timestamp;
     let error_response = format!("Block was rejected: {:?}", &proposal).to_string();
 
+    let round = (get_current_time() - last_block_unix_timestamp)
+        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION)
+        + 1;
     if proposal.timestamp
-        < last_block_unix_timestamp + COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION
+        < last_block_unix_timestamp
+            + ((round - 1) * (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION))
     {
+        println!(
+            "[Warning] Invalid Proposal Timestamp: {}",
+            proposal.timestamp
+        );
         return error_response;
     };
-    if state_lock.block_state.height != proposal.height - 1 {
+
+    if state_lock.block_state.height != proposal.height {
+        println!("[Warning] Invalid Proposal Height: {}", &proposal.height);
         return error_response;
     }
-
+    println!("[Info] Proposal Height: {}", &proposal.height);
     // if the block is complete, store it and reset memory db
     // if the block is incomplete, attest to it (in case this node hasn't yet done that)
     // and gossip it
@@ -76,13 +95,18 @@ pub async fn propose(
         .signature
         .clone()
         .expect("Block has not been signed!");
-    if let Some(round_winner) = state_lock.consensus_state.round_winner {
+    if let Some(round_winner) = state_lock
+        .consensus_state
+        .round_winners
+        .get(round as usize - 1)
+    {
         let signature_deserialized = Signature::from_slice(&block_signature).unwrap();
         match round_winner.verify(&proposal.to_bytes(), &signature_deserialized) {
             Ok(_) => {
                 // sign the block if it has not been signed yet
                 let mut is_signed = false;
                 let block_commitments = proposal.commitments.clone().unwrap_or(Vec::new());
+                println!("[Info] Block commitments: {:?}", &block_commitments);
                 let mut commitment_count: u32 = 0;
                 for commitment in block_commitments {
                     let commitment_vk = deserialize_vk(&commitment.validator);
@@ -106,6 +130,8 @@ pub async fn propose(
                                 )
                             }
                         }
+                    } else {
+                        println!("[Err] Invalid Proposal found with invalid VK")
                     }
                     if commitment.validator
                         == state_lock
@@ -117,12 +143,13 @@ pub async fn propose(
                         is_signed = true;
                     }
                 }
+                println!("[Info] Commitment count: {}", &commitment_count);
                 if commitment_count >= CONSENSUS_THRESHOLD {
                     println!(
                         "{}",
                         format_args!("{} Received Valid Block", "[Info]".green())
                     );
-                    let previous_block_height = state_lock.block_state.height;
+                    let previous_block_height = state_lock.block_state.height - 1;
                     // todo: verify Block height
                     state_lock
                         .block_state
@@ -147,7 +174,14 @@ pub async fn propose(
                     }
                     // update in-memory trie root
                     state_lock.merkle_trie_root = root_node.unwrap_as_root();
-                    println!("{}", format_args!("{} Block was stored", "[Info]".green()));
+                    println!(
+                        "{}",
+                        format_args!(
+                            "{} Block was stored: {}",
+                            "[Info]".green(),
+                            previous_block_height + 1
+                        )
+                    );
                     println!(
                         "{}",
                         format_args!(
@@ -156,9 +190,7 @@ pub async fn propose(
                             state_lock.merkle_trie_root.hash
                         )
                     );
-                    state_lock
-                        .consensus_state
-                        .reinitialize(previous_block_height + 1);
+                    state_lock.consensus_state.reinitialize();
                 } else if !is_signed {
                     let mut local_sk = state_lock.consensus_state.local_signing_key.clone();
                     let block_bytes = proposal.to_bytes();
@@ -179,9 +211,16 @@ pub async fn propose(
                         Some(commitments) => commitments.push(commitment),
                         None => proposal.commitments = Some(vec![commitment]),
                     }
+                    println!("[Info] Signed Block is being gossipped");
                     let _ = state_lock
                         .local_gossipper
-                        .gossip_pending_block(proposal, state_lock.block_state.height)
+                        .gossip_pending_block(
+                            proposal,
+                            state_lock
+                                .block_state
+                                .get_block_by_height(state_lock.block_state.height - 1)
+                                .timestamp,
+                        )
                         .await;
                 } else {
                     println!(
@@ -206,7 +245,7 @@ pub async fn propose(
         }
         "[Ok] Block was processed".to_string()
     } else {
-        "[Err] Awaiting consensus evaluation".to_string()
+        "[Warning] Awaiting consensus evaluation".to_string()
     }
 }
 
@@ -257,11 +296,11 @@ pub async fn get_block(
         "{}",
         format_args!("{} Trying to get Block #{}", "[Info]".green(), height)
     );
-    if state_lock.block_state.height < height {
+    if state_lock.block_state.height < height + 1 {
         "[Warning] Requested Block that does not exist".to_string()
     } else {
         match serde_json::to_string(&state_lock.block_state.get_block_by_height(height)) {
-            Ok(height_json) => height_json,
+            Ok(block_json) => block_json,
             Err(e) => e.to_string(),
         }
     }

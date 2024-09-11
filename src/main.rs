@@ -15,7 +15,10 @@ use axum::{
     Extension, Router,
 };
 use colored::*;
-use config::{consensus::CONSENSUS_THRESHOLD, network::PEERS};
+use config::{
+    consensus::{ACCUMULATION_PHASE_DURATION, COMMITMENT_PHASE_DURATION, CONSENSUS_THRESHOLD},
+    network::PEERS,
+};
 use consensus::logic::evaluate_commitments;
 use crypto::ecdsa::deserialize_vk;
 use gossipper::Gossipper;
@@ -67,7 +70,7 @@ struct ServerState {
 
 async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
     let mut state_lock = database.lock().await;
-    let next_height = state_lock.consensus_state.height + 1;
+    let next_height = state_lock.block_state.height;
     let gossipper = Gossipper {
         peers: PEERS.to_vec(),
         client: Client::new(),
@@ -95,7 +98,6 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
                 let block_serialized = response.text().await.unwrap();
                 if block_serialized != "[Warning] Requested Block that does not exist" {
                     let block: Block = serde_json::from_str(&block_serialized).unwrap();
-                    let block_height = block.height;
                     state_lock
                         .block_state
                         .insert_block(next_height - 1, block.clone());
@@ -122,10 +124,14 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
                     }
                     // update trie root
                     state_lock.merkle_trie_root = root_node.unwrap_as_root();
-                    state_lock.consensus_state.reinitialize(block_height + 1);
+                    state_lock.consensus_state.reinitialize();
                     println!(
                         "{}",
-                        format_args!("{} Synchronized Block", "[Info]".green())
+                        format_args!(
+                            "{} Synchronized Block: {}",
+                            "[Info]".green(),
+                            next_height - 1
+                        )
                     );
                     println!(
                         "{}",
@@ -152,19 +158,31 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
     let mut state_lock = state.lock().await;
     let last_block_unix_timestamp = state_lock
         .block_state
-        .get_block_by_height(state_lock.block_state.height)
+        .get_block_by_height(state_lock.block_state.height - 1)
         .timestamp;
+    let round = (get_current_time() - last_block_unix_timestamp)
+        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION)
+        + 1;
     println!(
         "{}",
         format_args!(
             "{} Unix Timestamp: {} Target: {}",
             "[Info]".green(),
             unix_timestamp,
-            (last_block_unix_timestamp + config::consensus::ACCUMULATION_PHASE_DURATION)
+            (last_block_unix_timestamp
+                + ((round - 1) * (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION))
+                + config::consensus::ACCUMULATION_PHASE_DURATION)
         )
     );
-    if unix_timestamp > (last_block_unix_timestamp + config::consensus::ACCUMULATION_PHASE_DURATION)
-        && !state_lock.consensus_state.proposed
+    println!("[Info] Commitment round: {} / 10", &round);
+    if unix_timestamp
+        > (last_block_unix_timestamp
+            + ((round - 1) * (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION)))
+        && unix_timestamp
+            < (last_block_unix_timestamp
+                + (round - 1) * (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION))
+                + ACCUMULATION_PHASE_DURATION
+        && !state_lock.consensus_state.committed[round as usize - 1]
     {
         println!(
             "{}",
@@ -176,7 +194,7 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
                 .local_validator
                 .to_sec1_bytes()
                 .to_vec(),
-            state_lock.consensus_state.height.to_be_bytes().to_vec(),
+            state_lock.block_state.height.to_be_bytes().to_vec(),
         );
         let commitment = ConsensusCommitment {
             validator: state_lock
@@ -186,30 +204,65 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
                 .to_vec(),
             receipt: random_zk_commitment,
         };
+        match state_lock
+            .consensus_state
+            .commitments
+            .get_mut(round as usize - 1)
+        {
+            Some(r) => r.push(commitment.clone()),
+            None => state_lock
+                .consensus_state
+                .commitments
+                .push(vec![commitment.clone()]),
+        }
         println!(
             "{}",
             format_args!("{} Gossipping Consensus Commitment", "[Info]".green())
         );
-        state_lock
-            .consensus_state
-            .commitments
-            .push(commitment.clone());
         let _ = state_lock
             .local_gossipper
             .gossip_consensus_commitment(commitment)
             .await;
-        state_lock.consensus_state.proposed = true;
+        if round > state_lock.consensus_state.committed.len() as u32 {
+            panic!("Exceeded the consensus round limit for this block, the network got stuck!");
+        }
+        state_lock.consensus_state.committed[round as usize - 1] = true;
     }
-    if unix_timestamp
-        > (last_block_unix_timestamp
-            + config::consensus::ACCUMULATION_PHASE_DURATION
-            + config::consensus::COMMITMENT_PHASE_DURATION)
-        && state_lock.consensus_state.commitments.len() as u32 >= CONSENSUS_THRESHOLD
-        && !state_lock.consensus_state.committed
+
+    let round_commitment_count: u32 = match state_lock
+        .consensus_state
+        .commitments
+        .get(round as usize - 1)
     {
-        let round_winner: GenericPublicKey =
-            evaluate_commitments(state_lock.consensus_state.commitments.clone());
-        state_lock.consensus_state.round_winner = Some(deserialize_vk(&round_winner));
+        Some(c) => c.len() as u32,
+        None => 0,
+    };
+
+    if unix_timestamp > (last_block_unix_timestamp + config::consensus::ACCUMULATION_PHASE_DURATION)
+        && round_commitment_count >= CONSENSUS_THRESHOLD
+        && !state_lock.consensus_state.proposed[round as usize - 1]
+    {
+        let round_winner: GenericPublicKey = evaluate_commitments(
+            state_lock
+                .consensus_state
+                .commitments
+                .get(round as usize - 1)
+                .unwrap()
+                .clone(),
+        );
+        match state_lock
+            .consensus_state
+            .round_winners
+            .get_mut(round as usize - 1)
+        {
+            Some(_) => println!("[Err] Round winner exists prior to consensus evaluation phase"),
+            None => {
+                state_lock
+                    .consensus_state
+                    .round_winners
+                    .push(deserialize_vk(&round_winner));
+            }
+        }
         // if this node won the round it will propose the new Block
         let unix_timestamp = get_current_time();
         if round_winner
@@ -229,7 +282,7 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
             #[cfg(feature = "sqlite")]
             let transactions = state_lock.pool_state.get_all_transactions();
             let mut proposed_block = Block {
-                height: state_lock.consensus_state.height + 1,
+                height: state_lock.block_state.height,
                 signature: None,
                 transactions,
                 commitments: None,
@@ -238,21 +291,24 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
             let mut signing_key = state_lock.consensus_state.local_signing_key.clone();
             let signature: Signature = signing_key.sign(&proposed_block.to_bytes());
             proposed_block.signature = Some(signature.to_bytes().to_vec());
-            let last_block_unix_timestamp = state_lock
-                .block_state
-                .get_block_by_height(state_lock.block_state.height)
-                .timestamp;
+            println!(
+                "{}",
+                format_args!("{} Gossipping proposed Block", "[Info]".green())
+            );
             let _ = state_lock
                 .local_gossipper
                 .gossip_pending_block(proposed_block, last_block_unix_timestamp)
                 .await;
             println!(
                 "{}",
-                format_args!("{} Block was proposed", "[Info]".green())
+                format_args!("{} Block was proposed successfully", "[Info]".green())
             );
             state_lock.pool_state.reinitialize();
         }
-        state_lock.consensus_state.committed = true;
+        if round > state_lock.consensus_state.committed.len() as u32 {
+            panic!("Exceeded the consensus round limit for this block, the network got stuck!");
+        }
+        state_lock.consensus_state.proposed[round as usize - 1] = true;
     }
 }
 
@@ -277,7 +333,7 @@ async fn main() {
     #[cfg(feature = "sqlite")]
     let mut block_state = {
         let block_state: BlockStore = BlockStore {
-            height: 0,
+            height: 1,
             db_path: env::var("PATH_TO_DB").unwrap_or("database.sqlite".to_string()),
         };
         block_state.setup();
@@ -288,7 +344,7 @@ async fn main() {
         let block_state: BlockStore = BlockStore::empty();
         block_state
     };
-    block_state.trigger_genesis(0u32);
+    block_state.trigger_genesis(get_current_time());
     #[cfg(not(feature = "sqlite"))]
     let pool_state: TransactionPool = TransactionPool::empty();
     #[cfg(feature = "sqlite")]
@@ -300,7 +356,7 @@ async fn main() {
         pool_state.setup();
         pool_state
     };
-    let consensus_state: InMemoryConsensus = InMemoryConsensus::empty_with_default_validators(0);
+    let consensus_state: InMemoryConsensus = InMemoryConsensus::empty_with_default_validators();
     #[cfg(not(feature = "sqlite"))]
     let merkle_trie_state: MerkleTrieDB = MerkleTrieDB {
         nodes: HashMap::new(),
@@ -337,7 +393,7 @@ async fn main() {
             loop {
                 // for now the loop syncs one block at a time, this can be optimized
                 synchronization_loop(Arc::clone(&shared_state)).await;
-                tokio::time::sleep(Duration::from_secs(5)).await;
+                tokio::time::sleep(Duration::from_secs(10)).await;
             }
         }
     });
@@ -346,7 +402,7 @@ async fn main() {
         async move {
             loop {
                 consensus_loop(Arc::clone(&shared_state)).await;
-                tokio::time::sleep(Duration::from_secs(10)).await;
+                tokio::time::sleep(Duration::from_secs(5)).await;
             }
         }
     });

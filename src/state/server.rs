@@ -99,7 +99,7 @@ impl SqLiteBlockStore for BlockStore {
 impl InMemoryBlockStore for BlockStore {
     fn empty() -> Self {
         Self {
-            height: 0,
+            height: 1,
             blocks: HashMap::new(),
         }
     }
@@ -246,65 +246,82 @@ impl InMemoryTransactionPool for TransactionPool {
 }
 
 pub struct InMemoryConsensus {
-    pub height: u32,
     pub validators: Vec<VerifyingKey>,
     pub local_validator: VerifyingKey,
     pub local_signing_key: SigningKey,
-    pub commitments: Vec<ConsensusCommitment>,
-    pub round_winner: Option<VerifyingKey>,
-    pub proposed: bool,
-    pub committed: bool,
+    pub commitments: Vec<Vec<ConsensusCommitment>>,
+    pub current_round: u32,
+    pub round_winners: Vec<VerifyingKey>,
+    pub proposed: [bool; 10],
+    pub committed: [bool; 10],
 }
 
 impl InMemoryConsensus {
     #[allow(unused)]
-    pub fn empty(height: u32) -> Self {
+    pub fn empty() -> Self {
         Self {
-            height,
             validators: Vec::new(),
             local_validator: v1_vk_deserialized(),
             local_signing_key: v2_sk_deserialized(),
             commitments: Vec::new(),
-            round_winner: None,
-            proposed: false,
-            committed: false,
+            current_round: 0,
+            round_winners: Vec::new(),
+            proposed: [false; 10],
+            committed: [false; 10],
         }
     }
-    pub fn empty_with_default_validators(height: u32) -> InMemoryConsensus {
+    pub fn empty_with_default_validators() -> InMemoryConsensus {
         use crate::config::consensus::v2_vk_deserialized;
         let local_validator_test_id = env::var("LOCAL_VALIDATOR").unwrap_or(0.to_string());
+
         let local_validator = if local_validator_test_id == "0" {
             (v1_sk_deserialized(), v1_vk_deserialized())
         } else {
             (v2_sk_deserialized(), v2_vk_deserialized())
         };
+
         Self {
-            height,
             validators: vec![v1_vk_deserialized(), v2_vk_deserialized()],
             local_validator: local_validator.1,
             local_signing_key: local_validator.0,
             commitments: Vec::new(),
-            round_winner: None,
-            proposed: false,
-            committed: false,
+            current_round: 0,
+            round_winners: Vec::new(),
+            proposed: [false; 10],
+            committed: [false; 10],
         }
     }
-    pub fn insert_commitment(&mut self, commitment: ConsensusCommitment) {
+    pub fn insert_commitment(&mut self, commitment: ConsensusCommitment, round: u32) {
         // this is an inconvenient check, Receipt does not implement ParitalEq
         // come up with a better solution in the future
         // luckily the list of consensus commitments will be relatively small in memory
-        for c in &self.commitments {
-            if c.validator == commitment.validator {
-                return;
+        let commitments = self.commitments.get_mut(round as usize);
+        // iterate over all of them to see if the validator exists
+        match commitments {
+            Some(v) => {
+                for c in v {
+                    if c.validator == commitment.validator {
+                        return;
+                    }
+                }
+            }
+            None => {}
+        }
+
+        match self.commitments.get_mut(round as usize) {
+            Some(v) => {
+                v.push(commitment);
+            }
+            None => {
+                self.commitments.insert(round as usize, vec![commitment]);
             }
         }
-        self.commitments.push(commitment);
     }
-    pub fn reinitialize(&mut self, height: u32) {
-        self.height = height;
+    pub fn reinitialize(&mut self) {
         self.commitments = Vec::new();
-        self.round_winner = None;
-        self.proposed = false;
-        self.committed = false;
+        self.round_winners = Vec::new();
+        self.current_round = 0;
+        self.proposed = [false; 10];
+        self.committed = [false; 10];
     }
 }

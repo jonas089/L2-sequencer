@@ -2,6 +2,7 @@ use std::{env, time::Duration};
 
 use crate::{
     config::consensus::{ACCUMULATION_PHASE_DURATION, COMMITMENT_PHASE_DURATION},
+    get_current_time,
     types::Block,
 };
 use colored::Colorize;
@@ -17,20 +18,23 @@ pub struct Gossipper {
     pub client: Client,
 }
 
-async fn send_proposal(client: Client, peer: Peer, json_block: String) -> Response {
-    let response: Response = client
+async fn send_proposal(client: Client, peer: Peer, json_block: String) -> Option<Response> {
+    let response: Option<Response> = match client
         .post(format!("http://{}{}", &peer, "/propose"))
         .header("Content-Type", "application/json")
         .body(json_block)
         .timeout(Duration::from_secs(3))
         .send()
         .await
-        .unwrap();
+    {
+        Ok(r) => Some(r),
+        Err(_) => None,
+    };
     response
 }
 
 impl Gossipper {
-    pub async fn gossip_pending_block(&self, block: Block, last_block_timestamp: u32) {
+    pub async fn gossip_pending_block(&self, block: Block, last_block_unix_timestamp: u32) {
         // try to collect attestations for the proposal and
         // store it eventually (if it reaches the threshold)
         // stop porposing before the new round begins
@@ -52,20 +56,27 @@ impl Gossipper {
                 format_args!("{} Sending Block to Peer: {}", "[Info]".green(), &peer)
             );
             tokio::spawn(async move {
+                let start_round = (get_current_time() - last_block_unix_timestamp)
+                    / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION)
+                    + 1;
                 loop {
-                    if block.timestamp
-                        < last_block_timestamp
-                            + COMMITMENT_PHASE_DURATION
-                            + ACCUMULATION_PHASE_DURATION
-                    {
+                    let round = (get_current_time() - last_block_unix_timestamp)
+                        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION)
+                        + 1;
+                    if start_round < round {
+                        println!("[Err] Refusing to gossip old Block");
                         break;
                     }
                     let response =
-                        send_proposal(client_clone.clone(), peer_clone, json_block.clone())
+                        match send_proposal(client_clone.clone(), peer_clone, json_block.clone())
                             .await
-                            .text()
-                            .await
-                            .unwrap_or("[Err] Peer unresponsive".to_string());
+                        {
+                            Some(r) => r
+                                .text()
+                                .await
+                                .unwrap_or("[Err] Peer unresponsive".to_string()),
+                            None => "[Err] Failed to send request".to_string(),
+                        };
                     if response == "[Ok] Block was processed" {
                         println!(
                             "{}",
@@ -94,6 +105,16 @@ impl Gossipper {
                                 "[Warning]".yellow(),
                                 &peer_clone,
                                 "Peer unresponsive"
+                            )
+                        );
+                    } else if response == "[Err] Failed to send request" {
+                        println!(
+                            "{}",
+                            format_args!(
+                                "{} Failed to send request: {}, {}",
+                                "[Warning]".yellow(),
+                                &peer_clone,
+                                "Unknown"
                             )
                         );
                     }
@@ -125,7 +146,9 @@ impl Gossipper {
                     .send()
                     .await
                 {
-                    Ok(_) => {}
+                    Ok(_) => {
+                        println!("[Info] Successfully sent Consensus Commitment to peer")
+                    }
                     Err(_) => println!(
                         "{}",
                         format_args!(
