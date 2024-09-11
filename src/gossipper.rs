@@ -1,6 +1,9 @@
 use std::{env, time::Duration};
 
-use crate::{config::consensus::COMMITMENT_PHASE_DURATION, types::Block};
+use crate::{
+    config::consensus::{ACCUMULATION_PHASE_DURATION, COMMITMENT_PHASE_DURATION},
+    types::Block,
+};
 use colored::Colorize;
 use reqwest::{Client, Response};
 use tokio::time::sleep;
@@ -50,7 +53,11 @@ impl Gossipper {
             );
             tokio::spawn(async move {
                 loop {
-                    if block.timestamp < last_block_timestamp + COMMITMENT_PHASE_DURATION {
+                    if block.timestamp
+                        < last_block_timestamp
+                            + COMMITMENT_PHASE_DURATION
+                            + ACCUMULATION_PHASE_DURATION
+                    {
                         break;
                     }
                     let response =

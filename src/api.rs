@@ -51,7 +51,7 @@ pub async fn propose(
 ) -> String {
     println!(
         "{}",
-        format_args!("{} Proposal was Proposal was received", "[Info]".green())
+        format_args!("{} Proposal was received", "[Info]".green())
     );
     let mut state_lock: tokio::sync::MutexGuard<ServerState> = shared_state.lock().await;
     let last_block_unix_timestamp = state_lock

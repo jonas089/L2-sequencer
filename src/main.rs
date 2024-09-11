@@ -120,7 +120,7 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
                             insert_leaf(&mut state_lock.merkle_trie_state, &mut leaf, root_node);
                         root_node = Node::Root(new_root);
                     }
-                    // update in-memory trie root
+                    // update trie root
                     state_lock.merkle_trie_root = root_node.unwrap_as_root();
                     state_lock.consensus_state.reinitialize(block_height + 1);
                     println!(
