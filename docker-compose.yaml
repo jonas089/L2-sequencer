@@ -26,6 +26,34 @@ services:
     ports:
       - "8081:8081"
 
+  rust-node-3:
+    container_name: rust-node-3
+    build: .
+    restart: always
+    user: "1000:1000"
+    environment:
+      - PATH_TO_DB=/var/data/node-2.sqlite
+      - API_HOST_WITH_PORT=0.0.0.0:8082
+      - LOCAL_VALIDATOR=2
+    networks:
+      - rust-net
+    ports:
+      - "8082:8082"
+
+  rust-node-4:
+    container_name: rust-node-4
+    build: .
+    restart: always
+    user: "1000:1000"
+    environment:
+      - PATH_TO_DB=/var/data/node-2.sqlite
+      - API_HOST_WITH_PORT=0.0.0.0:8083
+      - LOCAL_VALIDATOR=3
+    networks:
+      - rust-net
+    ports:
+      - "8083:8083"
+
 networks:
   rust-net:
     name: rust-net

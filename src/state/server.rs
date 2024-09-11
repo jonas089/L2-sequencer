@@ -3,7 +3,10 @@ use k256::ecdsa::{SigningKey, VerifyingKey};
 use rusqlite::{params, Connection};
 
 use crate::{
-    config::consensus::{v1_sk_deserialized, v1_vk_deserialized, v2_sk_deserialized},
+    config::consensus::{
+        v1_sk_deserialized, v1_vk_deserialized, v2_sk_deserialized, v3_sk_deserialized,
+        v3_vk_deserialized, v4_sk_deserialized, v4_vk_deserialized,
+    },
     types::{Block, ConsensusCommitment, Timestamp, Transaction},
 };
 use std::{collections::HashMap, env};
@@ -276,8 +279,12 @@ impl InMemoryConsensus {
 
         let local_validator = if local_validator_test_id == "0" {
             (v1_sk_deserialized(), v1_vk_deserialized())
-        } else {
+        } else if local_validator_test_id == "1" {
             (v2_sk_deserialized(), v2_vk_deserialized())
+        } else if local_validator_test_id == "2" {
+            (v3_sk_deserialized(), v3_vk_deserialized())
+        } else {
+            (v4_sk_deserialized(), v4_vk_deserialized())
         };
 
         Self {

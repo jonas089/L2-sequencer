@@ -82,7 +82,11 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
         let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
         if this_node == "0.0.0.0:8080" && peer == "rust-node-1:8080" {
             continue;
-        } else if this_node == "0.0.0.0:8081" && peer == "rust-node-2:8080" {
+        } else if this_node == "0.0.0.0:8081" && peer == "rust-node-2:8081" {
+            continue;
+        } else if this_node == "0.0.0.0:8082" && peer == "rust-node-3:8082" {
+            continue;
+        } else if this_node == "0.0.0.0:8083" && peer == "rust-node-4:8083" {
             continue;
         }
         let response: Option<Response> = match gossipper

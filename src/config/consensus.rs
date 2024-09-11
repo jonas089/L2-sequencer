@@ -28,6 +28,26 @@ pub const TEST_V2_VK: &[u8] = &[
     189, 128, 192, 14, 203, 86, 139, 85, 234, 68, 42, 148,
 ];
 
+pub const TEST_V3_SK: &[u8] = &[
+    78, 194, 130, 103, 15, 45, 121, 75, 122, 24, 22, 185, 195, 164, 25, 189, 183, 163, 231, 221,
+    37, 26, 101, 13, 69, 29, 77, 206, 217, 20, 77, 21,
+];
+
+pub const TEST_V3_VK: &[u8] = &[
+    2, 217, 50, 215, 153, 42, 245, 61, 71, 110, 21, 55, 183, 0, 19, 78, 156, 8, 121, 68, 11, 122,
+    51, 85, 220, 37, 239, 242, 201, 160, 77, 125, 239,
+];
+
+pub const TEST_V4_SK: &[u8] = &[
+    9, 104, 30, 6, 93, 140, 7, 212, 211, 42, 112, 63, 19, 114, 222, 151, 216, 159, 111, 1, 72, 50,
+    218, 221, 135, 152, 242, 175, 208, 8, 82, 16,
+];
+
+pub const TEST_V4_VK: &[u8] = &[
+    2, 224, 125, 18, 54, 62, 252, 187, 84, 81, 249, 80, 161, 32, 46, 212, 182, 246, 46, 4, 182,
+    124, 62, 192, 144, 236, 185, 255, 179, 94, 0, 46, 190,
+];
+
 pub fn v1_sk_deserialized() -> SigningKey {
     deserialize_sk(TEST_V1_SK)
 }
@@ -42,4 +62,20 @@ pub fn v2_sk_deserialized() -> SigningKey {
 
 pub fn v2_vk_deserialized() -> VerifyingKey {
     deserialize_vk(TEST_V2_VK)
+}
+
+pub fn v3_sk_deserialized() -> SigningKey {
+    deserialize_sk(TEST_V3_SK)
+}
+
+pub fn v3_vk_deserialized() -> VerifyingKey {
+    deserialize_vk(TEST_V3_VK)
+}
+
+pub fn v4_sk_deserialized() -> SigningKey {
+    deserialize_sk(TEST_V4_SK)
+}
+
+pub fn v4_vk_deserialized() -> VerifyingKey {
+    deserialize_vk(TEST_V4_VK)
 }
