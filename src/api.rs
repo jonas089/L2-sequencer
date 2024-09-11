@@ -12,7 +12,7 @@ use patricia_trie::{
     insert_leaf,
     store::types::{Hashable, Leaf, Node},
 };
-use pord_sequencer::config::consensus::ACCUMULATION_PHASE_DURATION;
+use pord_sequencer::config::consensus::{ACCUMULATION_PHASE_DURATION, ROUND_DURATION};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -46,7 +46,7 @@ pub async fn commit(
         .get_block_by_height(state_lock.block_state.height - 1)
         .timestamp;
     let round = (get_current_time() - last_block_unix_timestamp)
-        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION)
+        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION + ROUND_DURATION)
         + 1;
     state_lock
         .consensus_state
@@ -70,7 +70,7 @@ pub async fn propose(
     let error_response = format!("Block was rejected: {:?}", &proposal).to_string();
 
     let round = (get_current_time() - last_block_unix_timestamp)
-        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION)
+        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION + ROUND_DURATION)
         + 1;
     if proposal.timestamp
         < last_block_unix_timestamp
@@ -95,18 +95,13 @@ pub async fn propose(
         .signature
         .clone()
         .expect("Block has not been signed!");
-    if let Some(round_winner) = state_lock
-        .consensus_state
-        .round_winners
-        .get(round as usize - 1)
-    {
+    if let Some(round_winner) = state_lock.consensus_state.round_winners.last() {
         let signature_deserialized = Signature::from_slice(&block_signature).unwrap();
         match round_winner.verify(&proposal.to_bytes(), &signature_deserialized) {
             Ok(_) => {
                 // sign the block if it has not been signed yet
                 let mut is_signed = false;
                 let block_commitments = proposal.commitments.clone().unwrap_or(Vec::new());
-                println!("[Info] Block commitments: {:?}", &block_commitments);
                 let mut commitment_count: u32 = 0;
                 for commitment in block_commitments {
                     let commitment_vk = deserialize_vk(&commitment.validator);
@@ -143,7 +138,6 @@ pub async fn propose(
                         is_signed = true;
                     }
                 }
-                println!("[Info] Commitment count: {}", &commitment_count);
                 if commitment_count >= CONSENSUS_THRESHOLD {
                     println!(
                         "{}",

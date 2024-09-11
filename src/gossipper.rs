@@ -1,7 +1,7 @@
 use std::{env, time::Duration};
 
 use crate::{
-    config::consensus::{ACCUMULATION_PHASE_DURATION, COMMITMENT_PHASE_DURATION},
+    config::consensus::{ACCUMULATION_PHASE_DURATION, COMMITMENT_PHASE_DURATION, ROUND_DURATION},
     get_current_time,
     types::Block,
 };
@@ -57,11 +57,13 @@ impl Gossipper {
             );
             tokio::spawn(async move {
                 let start_round = (get_current_time() - last_block_unix_timestamp)
-                    / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION)
+                    / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION + ROUND_DURATION)
                     + 1;
                 loop {
                     let round = (get_current_time() - last_block_unix_timestamp)
-                        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION)
+                        / (COMMITMENT_PHASE_DURATION
+                            + ACCUMULATION_PHASE_DURATION
+                            + ROUND_DURATION)
                         + 1;
                     if start_round < round {
                         println!("[Err] Refusing to gossip old Block");
@@ -87,7 +89,7 @@ impl Gossipper {
                             )
                         );
                         break;
-                    } else if response == "[Err] Awaiting consensus evaluation" {
+                    } else if response == "[Warning] Awaiting consensus evaluation" {
                         println!(
                             "{}",
                             format_args!(
@@ -117,6 +119,8 @@ impl Gossipper {
                                 "Unknown"
                             )
                         );
+                    } else {
+                        println!("[Warning] Unknown Response: {}", &response);
                     }
                     sleep(Duration::from_secs(3)).await;
                 }

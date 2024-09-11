@@ -206,7 +206,7 @@ impl SqLiteTransactionPool for TransactionPool {
     fn insert_transaction(&mut self, transaction: Transaction) {
         let conn = Connection::open(&self.db_path).unwrap();
         conn.execute(
-            "INSERT OR REPLACE INTO txns (transaction) VALUES (?1)",
+            "INSERT OR REPLACE INTO txns (tx) VALUES (?1)",
             params![bincode::serialize(&transaction).unwrap()],
         )
         .unwrap();

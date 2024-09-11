@@ -16,7 +16,9 @@ use axum::{
 };
 use colored::*;
 use config::{
-    consensus::{ACCUMULATION_PHASE_DURATION, COMMITMENT_PHASE_DURATION, CONSENSUS_THRESHOLD},
+    consensus::{
+        ACCUMULATION_PHASE_DURATION, COMMITMENT_PHASE_DURATION, CONSENSUS_THRESHOLD, ROUND_DURATION,
+    },
     network::PEERS,
 };
 use consensus::logic::evaluate_commitments;
@@ -127,11 +129,7 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
                     state_lock.consensus_state.reinitialize();
                     println!(
                         "{}",
-                        format_args!(
-                            "{} Synchronized Block: {}",
-                            "[Info]".green(),
-                            next_height - 1
-                        )
+                        format_args!("{} Synchronized Block: {}", "[Info]".green(), next_height)
                     );
                     println!(
                         "{}",
@@ -161,27 +159,26 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
         .get_block_by_height(state_lock.block_state.height - 1)
         .timestamp;
     let round = (get_current_time() - last_block_unix_timestamp)
-        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION)
+        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION + ROUND_DURATION)
         + 1;
     println!(
-        "{}",
-        format_args!(
-            "{} Unix Timestamp: {} Target: {}",
-            "[Info]".green(),
-            unix_timestamp,
-            (last_block_unix_timestamp
-                + ((round - 1) * (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION))
-                + config::consensus::ACCUMULATION_PHASE_DURATION)
-        )
+        "Round winner length: {:?}",
+        &state_lock.consensus_state.round_winners.len()
     );
+    let comm_size = match state_lock
+        .consensus_state
+        .commitments
+        .get(round as usize - 1)
+    {
+        Some(c) => c.len(),
+        None => 0,
+    };
+    println!("Commitments: {}", comm_size);
     println!("[Info] Commitment round: {} / 10", &round);
     if unix_timestamp
         > (last_block_unix_timestamp
+            + (COMMITMENT_PHASE_DURATION)
             + ((round - 1) * (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION)))
-        && unix_timestamp
-            < (last_block_unix_timestamp
-                + (round - 1) * (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION))
-                + ACCUMULATION_PHASE_DURATION
         && !state_lock.consensus_state.committed[round as usize - 1]
     {
         println!(
@@ -238,10 +235,15 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
         None => 0,
     };
 
-    if unix_timestamp > (last_block_unix_timestamp + config::consensus::ACCUMULATION_PHASE_DURATION)
+    if unix_timestamp
+        > (last_block_unix_timestamp
+            + ACCUMULATION_PHASE_DURATION
+            + COMMITMENT_PHASE_DURATION
+            + ((round - 1) * (ACCUMULATION_PHASE_DURATION + COMMITMENT_PHASE_DURATION)))
         && round_commitment_count >= CONSENSUS_THRESHOLD
         && !state_lock.consensus_state.proposed[round as usize - 1]
     {
+        println!("[Info] Choosing new round winner: {}", &round);
         let round_winner: GenericPublicKey = evaluate_commitments(
             state_lock
                 .consensus_state
@@ -250,7 +252,7 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
                 .unwrap()
                 .clone(),
         );
-        match state_lock
+        /*match state_lock
             .consensus_state
             .round_winners
             .get_mut(round as usize - 1)
@@ -262,7 +264,13 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
                     .round_winners
                     .push(deserialize_vk(&round_winner));
             }
-        }
+        }*/
+
+        state_lock
+            .consensus_state
+            .round_winners
+            .push(deserialize_vk(&round_winner));
+
         // if this node won the round it will propose the new Block
         let unix_timestamp = get_current_time();
         if round_winner
@@ -366,6 +374,8 @@ async fn main() {
         path: env::var("PATH_TO_DB").unwrap_or("database.sqlite".to_string()),
         cache: None,
     };
+    #[cfg(feature = "sqlite")]
+    merkle_trie_state.setup();
     let merkle_trie_root: Root = Root::empty();
     let local_gossipper: Gossipper = Gossipper {
         peers: PEERS.to_vec(),

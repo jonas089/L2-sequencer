@@ -5,6 +5,7 @@ use k256::ecdsa::{SigningKey, VerifyingKey};
 // specified in seconds
 pub const ACCUMULATION_PHASE_DURATION: u32 = 60;
 pub const COMMITMENT_PHASE_DURATION: u32 = 60;
+pub const ROUND_DURATION: u32 = 30;
 pub const CONSENSUS_THRESHOLD: u32 = 2;
 
 pub const TEST_V1_SK: &[u8] = &[
