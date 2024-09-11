@@ -253,7 +253,9 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
                 .unwrap()
                 .clone(),
         );
-        /*match state_lock
+        /* TODO: revisit
+
+        match state_lock
             .consensus_state
             .round_winners
             .get_mut(round as usize - 1)
