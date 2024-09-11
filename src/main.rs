@@ -17,7 +17,8 @@ use axum::{
 use colored::*;
 use config::{
     consensus::{
-        ACCUMULATION_PHASE_DURATION, COMMITMENT_PHASE_DURATION, CONSENSUS_THRESHOLD, ROUND_DURATION,
+        ACCUMULATION_PHASE_DURATION, COMMITMENT_PHASE_DURATION, CONSENSUS_THRESHOLD,
+        MAX_ROUNDS_FALLBACK, ROUND_DURATION,
     },
     network::PEERS,
 };
@@ -171,7 +172,10 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
         None => 0,
     };
     println!("Commitments: {}", comm_size);
-    println!("[Info] Commitment round: {} / 10", &round);
+    println!(
+        "[Info] Commitment round: {} / {}",
+        &round, MAX_ROUNDS_FALLBACK
+    );
     if unix_timestamp
         > (last_block_unix_timestamp
             + (COMMITMENT_PHASE_DURATION)

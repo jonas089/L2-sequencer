@@ -8,6 +8,8 @@ pub const COMMITMENT_PHASE_DURATION: u32 = 60;
 pub const ROUND_DURATION: u32 = 30;
 pub const CONSENSUS_THRESHOLD: u32 = 2;
 
+pub const MAX_ROUNDS_FALLBACK: u32 = 10;
+
 pub const TEST_V1_SK: &[u8] = &[
     197, 131, 252, 199, 111, 171, 195, 194, 6, 111, 156, 165, 24, 173, 168, 49, 220, 204, 234, 73,
     99, 125, 215, 189, 192, 254, 218, 47, 55, 40, 214, 117,

@@ -1,4 +1,5 @@
 use k256::ecdsa::{SigningKey, VerifyingKey};
+use pord_sequencer::config::consensus::MAX_ROUNDS_FALLBACK;
 #[cfg(feature = "sqlite")]
 use rusqlite::{params, Connection};
 
@@ -255,8 +256,8 @@ pub struct InMemoryConsensus {
     pub commitments: Vec<Vec<ConsensusCommitment>>,
     pub current_round: u32,
     pub round_winners: Vec<VerifyingKey>,
-    pub proposed: [bool; 10],
-    pub committed: [bool; 10],
+    pub proposed: [bool; MAX_ROUNDS_FALLBACK as usize],
+    pub committed: [bool; MAX_ROUNDS_FALLBACK as usize],
 }
 
 impl InMemoryConsensus {
@@ -269,8 +270,8 @@ impl InMemoryConsensus {
             commitments: Vec::new(),
             current_round: 0,
             round_winners: Vec::new(),
-            proposed: [false; 10],
-            committed: [false; 10],
+            proposed: [false; MAX_ROUNDS_FALLBACK as usize],
+            committed: [false; MAX_ROUNDS_FALLBACK as usize],
         }
     }
     pub fn empty_with_default_validators() -> InMemoryConsensus {
@@ -294,8 +295,8 @@ impl InMemoryConsensus {
             commitments: Vec::new(),
             current_round: 0,
             round_winners: Vec::new(),
-            proposed: [false; 10],
-            committed: [false; 10],
+            proposed: [false; MAX_ROUNDS_FALLBACK as usize],
+            committed: [false; MAX_ROUNDS_FALLBACK as usize],
         }
     }
     pub fn insert_commitment(&mut self, commitment: ConsensusCommitment, round: u32) {
@@ -328,7 +329,7 @@ impl InMemoryConsensus {
         self.commitments = Vec::new();
         self.round_winners = Vec::new();
         self.current_round = 0;
-        self.proposed = [false; 10];
-        self.committed = [false; 10];
+        self.proposed = [false; MAX_ROUNDS_FALLBACK as usize];
+        self.committed = [false; MAX_ROUNDS_FALLBACK as usize];
     }
 }
