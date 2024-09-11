@@ -289,7 +289,12 @@ impl InMemoryConsensus {
         };
 
         Self {
-            validators: vec![v1_vk_deserialized(), v2_vk_deserialized()],
+            validators: vec![
+                v1_vk_deserialized(),
+                v2_vk_deserialized(),
+                v3_vk_deserialized(),
+                v4_vk_deserialized(),
+            ],
             local_validator: local_validator.1,
             local_signing_key: local_validator.0,
             commitments: Vec::new(),
