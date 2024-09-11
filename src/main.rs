@@ -171,7 +171,7 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
         Some(c) => c.len(),
         None => 0,
     };
-    println!("Commitments: {}", comm_size);
+    println!("[Info] Commitments: {}", comm_size);
     println!(
         "[Info] Commitment round: {} / {}",
         &round, MAX_ROUNDS_FALLBACK

@@ -66,7 +66,7 @@ impl Gossipper {
                             + ROUND_DURATION)
                         + 1;
                     if start_round < round {
-                        println!("[Err] Refusing to gossip old Block");
+                        //println!("[Err] Refusing to gossip old Block");
                         break;
                     }
                     let response =
@@ -100,7 +100,7 @@ impl Gossipper {
                             )
                         );
                     } else if response == "[Err] Peer unresponsive" {
-                        println!(
+                        /*println!(
                             "{}",
                             format_args!(
                                 "{} Failed to send Block to peer: {}, {}",
@@ -108,9 +108,9 @@ impl Gossipper {
                                 &peer_clone,
                                 "Peer unresponsive"
                             )
-                        );
+                        );*/
                     } else if response == "[Err] Failed to send request" {
-                        println!(
+                        /*println!(
                             "{}",
                             format_args!(
                                 "{} Failed to send request: {}, {}",
@@ -118,7 +118,7 @@ impl Gossipper {
                                 &peer_clone,
                                 "Unknown"
                             )
-                        );
+                        );*/
                     } else {
                         //println!("[Warning] Unknown Response: {}", &response);
                     }
