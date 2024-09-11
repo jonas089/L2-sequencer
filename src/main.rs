@@ -105,10 +105,7 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
                         .insert_block(next_height - 1, block.clone());
                     // insert transactions into the trie
                     let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
-                    #[cfg(not(feature = "sqlite"))]
                     let transactions = &block.transactions;
-                    #[cfg(feature = "sqlite")]
-                    let transactions = &state_lock.pool_state.get_all_transactions();
                     for transaction in transactions {
                         let mut leaf = Leaf::new(Vec::new(), Some(transaction.data.clone()));
                         leaf.hash();
@@ -161,10 +158,6 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
     let round = (get_current_time() - last_block_unix_timestamp)
         / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION + ROUND_DURATION)
         + 1;
-    println!(
-        "Round winner length: {:?}",
-        &state_lock.consensus_state.round_winners.len()
-    );
     let comm_size = match state_lock
         .consensus_state
         .commitments

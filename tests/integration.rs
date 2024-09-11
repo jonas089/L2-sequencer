@@ -56,7 +56,8 @@ mod tests {
             "[Ok] Transaction is being sequenced: Transaction { data: [1, 2, 3, 4, 5], timestamp: 0 }"
         );
         let mut node_trie_root: Option<Root> = None;
-        for _5_seconds in 0..100 {
+        // wait a maximum of ~ 5 blocks
+        for _180_seconds in 0..5 {
             let trie_root_json = get_state_root_hash(client.clone())
                 .await
                 .text()
@@ -65,7 +66,7 @@ mod tests {
             let trie_root: Root = serde_json::from_str(&trie_root_json).unwrap();
             match trie_root.hash.clone() {
                 Some(_) => {
-                    node_trie_root = Some(trie_root);
+                    node_trie_root = Some(trie_root.clone());
                     break;
                 }
                 None => {}
