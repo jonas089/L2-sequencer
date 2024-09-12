@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y curl cmake ninja-build python3
 RUN cargo install cargo-binstall
 
 # Install cargo-risczero using binstall
-RUN cargo binstall cargo-risczero -y
+RUN cargo binstall cargo-risczero --version 1.1.0-rc.3 -y
 
 # Build the risc0 toolchain
 RUN cargo risczero build-toolchain --version v2024-04-22.0
