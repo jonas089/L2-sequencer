@@ -89,38 +89,6 @@ impl Gossipper {
                             )
                         );
                         break;
-                    } else if response == "[Warning] Awaiting consensus evaluation" {
-                        println!(
-                            "{}",
-                            format_args!(
-                                "{} Failed to send Block to peer: {}, {}",
-                                "[Warning]".yellow(),
-                                &peer_clone,
-                                "Consensus has not concluded"
-                            )
-                        );
-                    } else if response == "[Err] Peer unresponsive" {
-                        /*println!(
-                            "{}",
-                            format_args!(
-                                "{} Failed to send Block to peer: {}, {}",
-                                "[Warning]".yellow(),
-                                &peer_clone,
-                                "Peer unresponsive"
-                            )
-                        );*/
-                    } else if response == "[Err] Failed to send request" {
-                        /*println!(
-                            "{}",
-                            format_args!(
-                                "{} Failed to send request: {}, {}",
-                                "[Warning]".yellow(),
-                                &peer_clone,
-                                "Unknown"
-                            )
-                        );*/
-                    } else {
-                        //println!("[Warning] Unknown Response: {}", &response);
                     }
                     sleep(Duration::from_secs(3)).await;
                 }
