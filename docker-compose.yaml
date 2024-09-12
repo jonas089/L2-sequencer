@@ -2,7 +2,6 @@ version: "3.9"
 services:
   rust-node-1:
     container_name: rust-node-1
-    platform: linux/arm64
     build: .
     restart: always
     user: "1000:1000"
@@ -15,7 +14,6 @@ services:
 
   rust-node-2:
     container_name: rust-node-2
-    platform: linux/arm64
     build: .
     restart: always
     user: "1000:1000"
@@ -30,7 +28,6 @@ services:
 
   rust-node-3:
     container_name: rust-node-3
-    platform: linux/arm64
     build: .
     restart: always
     user: "1000:1000"
@@ -45,7 +42,6 @@ services:
 
   rust-node-4:
     container_name: rust-node-4
-    platform: linux/arm64
     build: .
     restart: always
     user: "1000:1000"

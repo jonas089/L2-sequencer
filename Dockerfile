@@ -5,7 +5,7 @@ FROM rust:latest
 WORKDIR /usr/src/app
 
 # Install necessary dependencies
-RUN apt-get update && apt-get install -y curl cmake ninja-build python3
+RUN apt-get update && apt-get install curl cmake ninja-build python3 -y
 
 # Install cargo-binstall
 RUN cargo install cargo-binstall
