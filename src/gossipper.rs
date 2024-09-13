@@ -111,7 +111,7 @@ impl Gossipper {
     }
 }
 
-fn docker_skip_self(this_node: &str, peer: &str) -> bool {
+pub fn docker_skip_self(this_node: &str, peer: &str) -> bool {
     if this_node == "0.0.0.0:8080" && peer == "rust-node-1:8080" {
         return true;
     } else if this_node == "0.0.0.0:8081" && peer == "rust-node-2:8081" {
