@@ -95,4 +95,4 @@ The merkle proof can be verified against the Root Hash of the Trie that it was r
 
 Note that `verify_merkle_proof` will revert if the merkle proof is invalid / doesn't sum up to the provided Trie Root.
 
-:green_heart: Support the Dev [Ethereum Address](0x595208520ec81234095bFe62eb52B4fc2A7e4928) :green_heart:
+:green_heart: Support the Dev [Ethereum Address](https://etherscan.io/address/0x595208520ec81234095bFe62eb52B4fc2A7e4928) :green_heart:
