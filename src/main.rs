@@ -70,7 +70,13 @@ struct ServerState {
 
 async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
     let mut state_lock = database.lock().await;
-    let next_height = state_lock.block_state.height;
+    #[cfg(not(feature = "sqlite"))]
+    let previous_block_height = state_lock.block_state.height - 1;
+
+    #[cfg(feature = "sqlite")]
+    let previous_block_height = state_lock.block_state.current_block_height() - 1;
+
+    let next_height = previous_block_height + 1;
     let gossipper = Gossipper {
         peers: PEERS.to_vec(),
         client: Client::new(),
@@ -104,7 +110,7 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
                     let block: Block = serde_json::from_str(&block_serialized).unwrap();
                     state_lock
                         .block_state
-                        .insert_block(next_height - 1, block.clone());
+                        .insert_block(next_height, block.clone());
                     // insert transactions into the trie
                     let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
                     let transactions = &block.transactions;
@@ -148,9 +154,17 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
 async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
     let unix_timestamp = get_current_time();
     let mut state_lock = state.lock().await;
+
+    #[cfg(not(feature = "sqlite"))]
     let last_block_unix_timestamp = state_lock
         .block_state
         .get_block_by_height(state_lock.block_state.height - 1)
+        .timestamp;
+
+    #[cfg(feature = "sqlite")]
+    let last_block_unix_timestamp = state_lock
+        .block_state
+        .get_block_by_height(state_lock.block_state.current_block_height() - 1)
         .timestamp;
 
     // check if clearing phase of new consensus round
@@ -179,6 +193,12 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
         current_round(last_block_unix_timestamp)
     );
 
+    #[cfg(not(feature = "sqlite"))]
+    let previous_block_height = state_lock.block_state.height - 1;
+
+    #[cfg(feature = "sqlite")]
+    let previous_block_height = state_lock.block_state.current_block_height() - 1;
+
     if state_lock.consensus_state.local_validator == committing_validator
         && !state_lock.consensus_state.committed
     {
@@ -189,7 +209,7 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
                 .local_validator
                 .to_sec1_bytes()
                 .to_vec(),
-            state_lock.block_state.height.to_be_bytes().to_vec(),
+            (previous_block_height + 1).to_be_bytes().to_vec(),
         );
         let commitment = ConsensusCommitment {
             validator: state_lock
@@ -224,7 +244,7 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
         && !state_lock.consensus_state.proposed
     {
         let mut proposed_block = Block {
-            height: state_lock.block_state.height,
+            height: previous_block_height + 1,
             signature: None,
             transactions,
             commitments: None,
@@ -267,7 +287,6 @@ async fn main() {
     #[cfg(feature = "sqlite")]
     let mut block_state = {
         let block_state: BlockStore = BlockStore {
-            height: 1,
             db_path: env::var("PATH_TO_DB").unwrap_or("database.sqlite".to_string()),
         };
         block_state.setup();

@@ -42,9 +42,16 @@ pub async fn commit(
 ) -> String {
     let mut state_lock = shared_state.lock().await;
     let success_response = format!("[Ok] Commitment was accepted: {:?}", &commitment).to_string();
+    #[cfg(not(feature = "sqlite"))]
     let last_block_unix_timestamp = state_lock
         .block_state
         .get_block_by_height(state_lock.block_state.height - 1)
+        .timestamp;
+
+    #[cfg(feature = "sqlite")]
+    let last_block_unix_timestamp = state_lock
+        .block_state
+        .get_block_by_height(state_lock.block_state.current_block_height() - 1)
         .timestamp;
     if !state_lock.consensus_state.round_winner.is_some() {
         // no round winner found, commitment might be valid
@@ -67,9 +74,16 @@ pub async fn propose(
     Json(mut proposal): Json<Block>,
 ) -> String {
     let mut state_lock: tokio::sync::MutexGuard<ServerState> = shared_state.lock().await;
+    #[cfg(not(feature = "sqlite"))]
     let last_block_unix_timestamp = state_lock
         .block_state
         .get_block_by_height(state_lock.block_state.height - 1)
+        .timestamp;
+
+    #[cfg(feature = "sqlite")]
+    let last_block_unix_timestamp = state_lock
+        .block_state
+        .get_block_by_height(state_lock.block_state.current_block_height() - 1)
         .timestamp;
     let error_response = format!("Block was rejected: {:?}", &proposal).to_string();
 
@@ -82,14 +96,11 @@ pub async fn propose(
         return error_response;
     };
 
-    if state_lock.block_state.height != proposal.height {
-        println!("[Warning] Invalid Proposal Height: {}", &proposal.height);
-        return error_response;
-    }
     let block_signature = proposal
         .signature
         .clone()
         .expect("Block has not been signed!");
+
     if let Some(round_winner) = state_lock.consensus_state.round_winner {
         let signature_deserialized = Signature::from_slice(&block_signature).unwrap();
         match round_winner.verify(&proposal.to_bytes(), &signature_deserialized) {
@@ -156,16 +167,21 @@ pub async fn propose(
                     "[Info] Commitment count for proposal: {}",
                     &commitment_count
                 );
+
+                #[cfg(not(feature = "sqlite"))]
+                let previous_block_height = state_lock.block_state.height - 1;
+                #[cfg(feature = "sqlite")]
+                let previous_block_height = state_lock.block_state.current_block_height() - 1;
+
                 if commitment_count >= CONSENSUS_THRESHOLD {
                     println!(
                         "{}",
                         format_args!("{} Received Valid Block", "[Info]".green())
                     );
-                    let previous_block_height = state_lock.block_state.height - 1;
-                    // todo: verify Block height
+
                     state_lock
                         .block_state
-                        .insert_block(previous_block_height, proposal.clone());
+                        .insert_block(proposal.height, proposal.clone());
                     // insert transactions into the trie
                     let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
                     for transaction in &proposal.transactions {
@@ -188,11 +204,7 @@ pub async fn propose(
                     state_lock.merkle_trie_root = root_node.unwrap_as_root();
                     println!(
                         "{}",
-                        format_args!(
-                            "{} Block was stored: {}",
-                            "[Info]".green(),
-                            previous_block_height + 1
-                        )
+                        format_args!("{} Block was stored: {}", "[Info]".green(), proposal.height)
                     );
                     println!(
                         "{}",
@@ -203,7 +215,11 @@ pub async fn propose(
                         )
                     );
                     //state_lock.consensus_state.reinitialize();
-                } else if !is_signed && !state_lock.consensus_state.signed {
+                } else if !is_signed
+                    && !state_lock.consensus_state.signed
+                    // only signing proposals for the current height
+                    && (previous_block_height + 1 == proposal.height)
+                {
                     let mut local_sk = state_lock.consensus_state.local_signing_key.clone();
                     let block_bytes = proposal.to_bytes();
                     let signature: Signature = local_sk.sign(&block_bytes);
@@ -224,15 +240,14 @@ pub async fn propose(
                         None => proposal.commitments = Some(vec![commitment]),
                     }
                     println!("[Info] Signed Block is being gossipped");
+                    let last_block_unix_timestamp = state_lock
+                        .block_state
+                        .get_block_by_height(previous_block_height)
+                        .timestamp;
+
                     let _ = state_lock
                         .local_gossipper
-                        .gossip_pending_block(
-                            proposal.clone(),
-                            state_lock
-                                .block_state
-                                .get_block_by_height(state_lock.block_state.height - 1)
-                                .timestamp,
-                        )
+                        .gossip_pending_block(proposal.clone(), last_block_unix_timestamp)
                         .await;
                     // allow signing of infinite lower blocks
                     // state_lock.consensus_state.signed = true;
@@ -308,9 +323,15 @@ pub async fn get_block(
     let state_lock = shared_state.lock().await;
     println!(
         "{}",
-        format_args!("{} Trying to get Block #{}", "[Info]".green(), height)
+        format_args!("{} Peer Requested Block #{}", "[Info]".green(), height)
     );
-    if state_lock.block_state.height < height + 1 {
+    #[cfg(not(feature = "sqlite"))]
+    let previous_block_height = state_lock.block_state.height - 1;
+
+    #[cfg(feature = "sqlite")]
+    let previous_block_height = state_lock.block_state.current_block_height() - 1;
+
+    if previous_block_height < height + 1 {
         "[Warning] Requested Block that does not exist".to_string()
     } else {
         match serde_json::to_string(&state_lock.block_state.get_block_by_height(height)) {

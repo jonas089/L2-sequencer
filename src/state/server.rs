@@ -24,11 +24,11 @@ pub trait SqLiteBlockStore {
     fn trigger_genesis(&mut self, timestamp: Timestamp);
     fn insert_block(&mut self, previous_height: u32, block: Block);
     fn get_block_by_height(&self, height: u32) -> Block;
+    fn current_block_height(&self) -> u32;
 }
 
 #[cfg(feature = "sqlite")]
 pub struct BlockStore {
-    pub height: u32,
     pub db_path: String,
 }
 
@@ -51,6 +51,15 @@ impl SqLiteBlockStore for BlockStore {
         )
         .unwrap();
     }
+
+    fn current_block_height(&self) -> u32 {
+        let conn = Connection::open(&self.db_path).unwrap();
+        let mut stmt = conn.prepare("SELECT COUNT(*) FROM blocks").unwrap();
+        let mut rows = stmt.query([]).unwrap();
+        let count: usize = rows.next().unwrap().unwrap().get(0).unwrap();
+        count as u32
+    }
+
     fn get_block_by_height(&self, height: u32) -> Block {
         let conn = Connection::open(&self.db_path).unwrap();
         let mut stmt = conn
@@ -69,15 +78,8 @@ impl SqLiteBlockStore for BlockStore {
         )
         .unwrap()
     }
-    fn insert_block(&mut self, previous_height: u32, block: Block) {
+    fn insert_block(&mut self, height: u32, block: Block) {
         let conn = Connection::open(&self.db_path).unwrap();
-        let mut height = previous_height + 1;
-        // todo: read height from db
-        self.height += 1;
-        if block.height == 0 {
-            self.height -= 1;
-            height = 0;
-        }
         conn.execute(
             "INSERT OR REPLACE INTO blocks (height, block) VALUES (?1, ?2)",
             params![height, bincode::serialize(&block).unwrap()],
@@ -120,7 +122,7 @@ impl InMemoryBlockStore for BlockStore {
     }
     fn insert_block(&mut self, previous_height: u32, block: Block) {
         self.blocks.insert(previous_height + 1, block);
-        self.height += 1;
+        self.height = self.blocks.len() as u32;
     }
     fn get_block_by_height(&self, height: u32) -> Block {
         self.blocks
