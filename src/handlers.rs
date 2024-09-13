@@ -1,8 +1,13 @@
+use crate::config::consensus::CONSENSUS_THRESHOLD;
 #[cfg(not(feature = "sqlite"))]
 use crate::state::server::InMemoryBlockStore;
-use crate::types::Block;
-use crate::ServerState;
+use crate::types::BlockCommitment;
+use crate::types::GenericSignature;
+use crate::{crypto::ecdsa::deserialize_vk, types::Block};
+use crate::{get_current_time, ServerState};
 use colored::Colorize;
+use k256::ecdsa::signature::{SignerMut, Verifier};
+use k256::ecdsa::Signature;
 use patricia_trie::{
     insert_leaf,
     store::types::{Hashable, Leaf, Node},
@@ -65,4 +70,169 @@ pub async fn handle_synchronization_response(
             )
         );
     }
+}
+
+pub async fn handle_block_proposal(
+    state_lock: &mut tokio::sync::RwLockWriteGuard<'_, ServerState>,
+    proposal: &mut Block,
+    error_response: String,
+) -> Option<String> {
+    let early_revert: bool = match &state_lock.consensus_state.lowest_block {
+        Some(v) => {
+            if proposal.to_bytes() < v.clone() {
+                state_lock.consensus_state.lowest_block = Some(proposal.to_bytes());
+                false
+            } else if proposal.to_bytes() == v.clone() {
+                false
+            } else {
+                true
+            }
+        }
+        None => {
+            state_lock.consensus_state.lowest_block = Some(proposal.to_bytes());
+            false
+        }
+    };
+    if early_revert {
+        return Some(error_response);
+    }
+    // sign the block if it has not been signed yet
+    let mut is_signed = false;
+    let block_commitments = proposal.commitments.clone().unwrap_or(Vec::new());
+    let mut commitment_count: u32 = 0;
+    for commitment in block_commitments {
+        let commitment_vk = deserialize_vk(&commitment.validator);
+        if state_lock
+            .consensus_state
+            .validators
+            .contains(&commitment_vk)
+        {
+            match commitment_vk.verify(
+                &proposal.to_bytes(),
+                &Signature::from_slice(&commitment.signature).unwrap(),
+            ) {
+                Ok(_) => commitment_count += 1,
+                Err(_) => {
+                    println!(
+                        "{}",
+                        format_args!("{} Invalid Commitment was Ignored", "[Warning]".yellow())
+                    )
+                }
+            }
+        } else {
+            println!("[Err] Invalid Proposal found with invalid VK")
+        }
+        if commitment.validator
+            == state_lock
+                .consensus_state
+                .local_validator
+                .to_sec1_bytes()
+                .to_vec()
+        {
+            is_signed = true;
+        }
+    }
+    println!(
+        "[Info] Commitment count for proposal: {}",
+        &commitment_count
+    );
+
+    #[cfg(not(feature = "sqlite"))]
+    let previous_block_height = state_lock.block_state.height - 1;
+    #[cfg(feature = "sqlite")]
+    let previous_block_height = state_lock.block_state.current_block_height() - 1;
+
+    if commitment_count >= CONSENSUS_THRESHOLD {
+        println!(
+            "{}",
+            format_args!("{} Received Valid Block", "[Info]".green())
+        );
+
+        #[cfg(not(feature = "sqlite"))]
+        state_lock
+            .block_state
+            .insert_block(proposal.height - 1, proposal.clone());
+
+        #[cfg(feature = "sqlite")]
+        state_lock
+            .block_state
+            .insert_block(proposal.height, proposal.clone());
+        // insert transactions into the trie
+        let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
+        for transaction in &proposal.transactions {
+            let mut leaf = Leaf::new(Vec::new(), Some(transaction.data.clone()));
+            leaf.hash();
+            leaf.key = leaf
+                .hash
+                .clone()
+                .unwrap()
+                .iter()
+                .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
+                .collect();
+            leaf.hash();
+
+            let new_root = insert_leaf(&mut state_lock.merkle_trie_state, &mut leaf, root_node);
+            root_node = Node::Root(new_root);
+        }
+        // update in-memory trie root
+        state_lock.merkle_trie_root = root_node.unwrap_as_root();
+        println!(
+            "{}",
+            format_args!("{} Block was stored: {}", "[Info]".green(), proposal.height)
+        );
+        println!(
+            "{}",
+            format_args!(
+                "{} New Trie Root: {:?}",
+                "[Info]".green(),
+                state_lock.merkle_trie_root.hash
+            )
+        );
+        //state_lock.consensus_state.reinitialize();
+    } else if !is_signed
+        && !state_lock.consensus_state.signed
+        // only signing proposals for the current height
+        && (previous_block_height + 1 == proposal.height)
+    {
+        let mut local_sk = state_lock.consensus_state.local_signing_key.clone();
+        let block_bytes = proposal.to_bytes();
+        let signature: Signature = local_sk.sign(&block_bytes);
+        let signature_serialized: GenericSignature = signature.to_bytes().to_vec();
+        let unix_timestamp = get_current_time();
+        let commitment = BlockCommitment {
+            signature: signature_serialized,
+            validator: state_lock
+                .consensus_state
+                .local_validator
+                .to_sec1_bytes()
+                .to_vec()
+                .clone(),
+            timestamp: unix_timestamp,
+        };
+        match proposal.commitments.as_mut() {
+            Some(commitments) => commitments.push(commitment),
+            None => proposal.commitments = Some(vec![commitment]),
+        }
+        println!("[Info] Signed Block is being gossipped");
+        let last_block_unix_timestamp = state_lock
+            .block_state
+            .get_block_by_height(previous_block_height)
+            .timestamp;
+
+        let _ = state_lock
+            .local_gossipper
+            .gossip_pending_block(proposal.clone(), last_block_unix_timestamp)
+            .await;
+        // allow signing of infinite lower blocks
+        // state_lock.consensus_state.signed = true;
+    } else {
+        println!(
+            "{}",
+            format_args!(
+                "{} Block is signed but lacks commitments",
+                "[Warning]".yellow()
+            )
+        );
+    }
+    None
 }

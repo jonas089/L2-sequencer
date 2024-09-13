@@ -93,12 +93,7 @@ impl Gossipper {
                     .send()
                     .await
                 {
-                    Ok(response) => {
-                        println!(
-                            "[Info] Commitment Response: {:?}",
-                            response.text().await.unwrap()
-                        )
-                    }
+                    Ok(_) => {}
                     Err(_) => println!(
                         "{}",
                         format_args!(

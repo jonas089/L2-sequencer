@@ -92,10 +92,7 @@ async fn synchronization_loop(database: Arc<RwLock<ServerState>>) {
             .await
         {
             Ok(response) => Some(response),
-            Err(e) => {
-                println!("[Warning] Synchronization failed with: {}", &e);
-                None
-            }
+            Err(_) => None,
         };
         match response {
             Some(response) => {
@@ -129,7 +126,6 @@ async fn consensus_loop(state: Arc<RwLock<ServerState>>) {
                 + CLEARING_PHASE_DURATION)
     {
         state_lock.consensus_state.reinitialize();
-        // establish finality over the most recent block
         return;
     }
 
@@ -294,7 +290,7 @@ async fn main() {
     );
     println!("{}", formatted_msg);
 
-    /*let synchronization_task = tokio::spawn({
+    let synchronization_task = tokio::spawn({
         let shared_state = Arc::clone(&shared_state);
         async move {
             loop {
@@ -303,7 +299,7 @@ async fn main() {
                 tokio::time::sleep(Duration::from_secs(20)).await;
             }
         }
-    });*/
+    });
     let consensus_task = tokio::spawn({
         let shared_state = Arc::clone(&shared_state);
         async move {
@@ -336,12 +332,12 @@ async fn main() {
     });
 
     tokio::select! {
-        /*sync_task_res = synchronization_task => {
+        sync_task_res = synchronization_task => {
             match sync_task_res {
                 Ok(_) => println!("{}", format_args!("{} Synchronization task concluded without error", "[Warning]".yellow())),
                 Err(e) => println!("{}", format_args!("{} Synchronization task failed with error: {}", "[Error]".red(), e))
             }
-        },*/
+        },
         consensus_task_res = consensus_task => {
             match consensus_task_res {
                 Ok(_) => println!("{}", format_args!("{} Consensus task concluded without error", "[Warning]".yellow())),
