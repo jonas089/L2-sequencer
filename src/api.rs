@@ -194,3 +194,13 @@ pub async fn get_state_root_hash(
         Err(e) => e.to_string(),
     }
 }
+
+pub async fn get_height(Extension(shared_state): Extension<Arc<RwLock<ServerState>>>) -> String {
+    let state_lock = shared_state.read().await;
+    #[cfg(not(feature = "sqlite"))]
+    let previous_block_height = state_lock.block_state.height - 1;
+
+    #[cfg(feature = "sqlite")]
+    let previous_block_height = state_lock.block_state.current_block_height();
+    serde_json::to_string(&previous_block_height).unwrap()
+}

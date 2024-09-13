@@ -190,7 +190,7 @@ pub async fn handle_block_proposal(
         );
         //state_lock.consensus_state.reinitialize();
     } else if !is_signed
-        && !state_lock.consensus_state.signed
+        // && !state_lock.consensus_state.signed
         // only signing proposals for the current height
         && (previous_block_height + 1 == proposal.height)
     {
@@ -223,8 +223,6 @@ pub async fn handle_block_proposal(
             .local_gossipper
             .gossip_pending_block(proposal.clone(), last_block_unix_timestamp)
             .await;
-        // allow signing of infinite lower blocks
-        // state_lock.consensus_state.signed = true;
     } else {
         println!(
             "{}",
