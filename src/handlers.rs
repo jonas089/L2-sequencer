@@ -171,7 +171,8 @@ pub async fn handle_block_proposal(
                 .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
                 .collect();
             leaf.hash();
-
+            todo!("check if leaf exists and insert otherwise");
+            // currently duplicate insertion will cause an error
             let new_root = insert_leaf(&mut state_lock.merkle_trie_state, &mut leaf, root_node);
             root_node = Node::Root(new_root);
         }
