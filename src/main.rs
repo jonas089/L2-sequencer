@@ -98,7 +98,7 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
         let response: Option<Response> = match gossipper
             .client
             .get(format!("http://{}{}{}", &peer, "/get/block/", next_height))
-            .timeout(Duration::from_secs(3))
+            .timeout(Duration::from_secs(30))
             .send()
             .await
         {
@@ -214,7 +214,6 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
     if state_lock.consensus_state.local_validator == committing_validator
         && !state_lock.consensus_state.committed
     {
-        println!("[Info] Node is ready to commit");
         let random_zk_number = generate_random_number(
             state_lock
                 .consensus_state
@@ -360,7 +359,7 @@ async fn main() {
             loop {
                 // for now the loop syncs one block at a time, this can be optimized
                 synchronization_loop(Arc::clone(&shared_state)).await;
-                tokio::time::sleep(Duration::from_secs(10)).await;
+                tokio::time::sleep(Duration::from_secs(20)).await;
             }
         }
     });
