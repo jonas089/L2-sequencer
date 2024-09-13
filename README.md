@@ -1,6 +1,6 @@
 # Distributed L2 Sequencer
 Read the full [Whitepaper](https://github.com/jonas089/PoRD/tree/master/whitepaper)
-
+:green_heart: Support the Dev on [Ethereum](https://etherscan.io/address/0x595208520ec81234095bFe62eb52B4fc2A7e4928) :green_heart:
 
 # Recommended: Run an sqlite Network Automatically: Docker Support
 I began taking this passion project quite serious, so I added an SQLite DB to store Blocks and Transactions.
@@ -94,5 +94,3 @@ The merkle proof can be verified against the Root Hash of the Trie that it was r
 ```
 
 Note that `verify_merkle_proof` will revert if the merkle proof is invalid / doesn't sum up to the provided Trie Root.
-
-:green_heart: Support the Dev [Ethereum Address](https://etherscan.io/address/0x595208520ec81234095bFe62eb52B4fc2A7e4928) :green_heart:
