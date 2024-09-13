@@ -1266,6 +1266,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "l2-sequencer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "bincode",
+ "colored",
+ "indicatif",
+ "jsonrpsee-core",
+ "k256",
+ "lazy_static",
+ "num-bigint",
+ "num-traits",
+ "patricia-trie",
+ "prover",
+ "rand",
+ "rand_core",
+ "reqwest",
+ "risc0-zkvm",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tokio",
+ "zk-logic",
+]
+
+[[package]]
 name = "lazy-regex"
 version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1665,33 +1692,6 @@ name = "pkg-config"
 version = "0.3.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d231b230927b5e4ad203db57bbcbee2802f6bce620b1e4a9024a07d94e2907ec"
-
-[[package]]
-name = "pord-sequencer"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "bincode",
- "colored",
- "indicatif",
- "jsonrpsee-core",
- "k256",
- "lazy_static",
- "num-bigint",
- "num-traits",
- "patricia-trie",
- "prover",
- "rand",
- "rand_core",
- "reqwest",
- "risc0-zkvm",
- "rusqlite",
- "serde",
- "serde_json",
- "tokio",
- "zk-logic",
-]
 
 [[package]]
 name = "portable-atomic"

@@ -1,5 +1,5 @@
 [package]
-name = "pord-sequencer"
+name = "l2-sequencer"
 version = "0.1.0"
 edition = "2021"
 
