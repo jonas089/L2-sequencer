@@ -18,6 +18,7 @@ use tokio::sync::Mutex;
 
 use crate::{
     config::consensus::{COMMITMENT_PHASE_DURATION, CONSENSUS_THRESHOLD},
+    consensus::logic::get_committing_validator,
     crypto::ecdsa::deserialize_vk,
     get_current_time,
     types::{Block, BlockCommitment, ConsensusCommitment, GenericSignature, Transaction},
@@ -32,6 +33,33 @@ pub async fn schedule(
     let success_response =
         format!("[Ok] Transaction is being sequenced: {:?}", &transaction).to_string();
     state.pool_state.insert_transaction(transaction);
+    success_response
+}
+
+pub async fn commit_consensus_v2(
+    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
+    Json(commitment): Json<ConsensusCommitment>,
+) -> String {
+    let mut state_lock = shared_state.lock().await;
+    let success_response = format!("[Ok] Commitment was accepted: {:?}", &commitment).to_string();
+    let last_block_unix_timestamp = state_lock
+        .block_state
+        .get_block_by_height(state_lock.block_state.height - 1)
+        .timestamp;
+    let round = (get_current_time() - last_block_unix_timestamp)
+        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION + ROUND_DURATION)
+        + 1;
+    if state_lock.consensus_state.round_winners.len() < round as usize {
+        // no round winner found, commitment might be valid
+        let validator = get_committing_validator(
+            last_block_unix_timestamp,
+            state_lock.consensus_state.validators.clone(),
+        );
+        // todo: check if commitment signature is valid for validator
+        if deserialize_vk(&commitment.validator) == validator {
+            // todo: choose new winner
+        }
+    }
     success_response
 }
 

@@ -1,6 +1,11 @@
 use crate::types::{ConsensusCommitment, GenericPublicKey};
+use k256::ecdsa::VerifyingKey;
 use num_bigint::BigInt;
-use num_traits::Signed;
+use num_traits::{Signed, ToPrimitive};
+use pord_sequencer::{
+    config::consensus::{ACCUMULATION_PHASE_DURATION, COMMITMENT_PHASE_DURATION, ROUND_DURATION},
+    get_current_time,
+};
 use zk_logic::{random_bytes_to_int, types::CircuitOutputs};
 
 pub fn evaluate_commitments(commitments: Vec<ConsensusCommitment>) -> GenericPublicKey {
@@ -77,4 +82,21 @@ fn choose_winner(
         }
     }
     winner.unwrap()
+}
+
+pub fn get_committing_validator(
+    last_block_unix_timestamp: u32,
+    validators: Vec<VerifyingKey>,
+) -> VerifyingKey {
+    let round = (get_current_time() - last_block_unix_timestamp)
+        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION + ROUND_DURATION);
+    // returns the current validator
+    validators[round as usize % (validators.len() - 1) as usize]
+}
+
+pub fn choose_winner_v2(random_commitment: BigInt, validators: Vec<VerifyingKey>) -> VerifyingKey {
+    let index = (random_commitment % (validators.len() - 1))
+        .to_u32()
+        .unwrap();
+    validators[index as usize]
 }
