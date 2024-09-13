@@ -82,6 +82,7 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
         peers: PEERS.to_vec(),
         client: Client::new(),
     };
+
     for peer in gossipper.peers {
         // todo: make this generic for n amount of nodes
         let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
@@ -102,7 +103,10 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
             .await
         {
             Ok(response) => Some(response),
-            Err(_) => None,
+            Err(e) => {
+                println!("[Warning] Synchronization failed with: {}", &e);
+                None
+            }
         };
         match response {
             Some(response) => {
