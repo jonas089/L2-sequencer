@@ -117,12 +117,11 @@ async fn synchronization_loop_with_finality(database: Arc<RwLock<ServerState>>) 
 async fn synchronization_loop(database: Arc<RwLock<ServerState>>) {
     let mut state_lock = database.write().await;
     #[cfg(not(feature = "sqlite"))]
-    let previous_block_height = state_lock.block_state.height - 1;
+    let next_height = state_lock.block_state.height - 1;
 
     #[cfg(feature = "sqlite")]
-    let previous_block_height = state_lock.block_state.current_block_height() - 1;
+    let next_height = state_lock.block_state.current_block_height() - 1;
 
-    let next_height = previous_block_height + 1;
     let gossipper = Gossipper {
         peers: PEERS.to_vec(),
         client: Client::new(),
@@ -137,7 +136,7 @@ async fn synchronization_loop(database: Arc<RwLock<ServerState>>) {
         let response: Option<Response> = match gossipper
             .client
             .get(format!("http://{}{}{}", &peer, "/get/block/", next_height))
-            .timeout(Duration::from_secs(30))
+            .timeout(Duration::from_secs(15))
             .send()
             .await
         {

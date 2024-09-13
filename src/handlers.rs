@@ -24,13 +24,14 @@ pub async fn handle_synchronization_response(
     response: Response,
     next_height: u32,
 ) {
+    println!("Querying Block: {}", &next_height);
     let block_serialized = response.text().await.unwrap();
     if block_serialized != "[Warning] Requested Block that does not exist" {
         let block: Block = serde_json::from_str(&block_serialized).unwrap();
         #[cfg(not(feature = "sqlite"))]
         state_lock
             .block_state
-            .insert_block(next_height - 1, block.clone());
+            .insert_block(next_height, block.clone());
 
         #[cfg(feature = "sqlite")]
         state_lock
