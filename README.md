@@ -1,5 +1,6 @@
 # Distributed L2 Sequencer
 Read the full [Whitepaper](https://github.com/jonas089/PoRD/tree/master/whitepaper)
+
 :green_heart: Support the Dev on [Ethereum](https://etherscan.io/address/0x595208520ec81234095bFe62eb52B4fc2A7e4928) :green_heart:
 
 # Recommended: Run an sqlite Network Automatically: Docker Support
