@@ -93,8 +93,11 @@ impl Gossipper {
                     .send()
                     .await
                 {
-                    Ok(_) => {
-                        println!("[Info] Successfully sent Consensus Commitment to peer")
+                    Ok(response) => {
+                        println!(
+                            "[Info] Commitment Response: {:?}",
+                            response.text().await.unwrap()
+                        )
                     }
                     Err(_) => println!(
                         "{}",

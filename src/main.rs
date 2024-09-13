@@ -20,8 +20,7 @@ use config::{
     consensus::{CLEARING_PHASE_DURATION, ROUND_DURATION},
     network::PEERS,
 };
-use consensus::logic::{current_round, get_committing_validator};
-use crypto::ecdsa::Keypair;
+use consensus::logic::{current_round, evaluate_commitment, get_committing_validator};
 use gossipper::{docker_skip_self, Gossipper};
 use handlers::handle_synchronization_response;
 use k256::ecdsa::{signature::SignerMut, Signature};
@@ -53,7 +52,7 @@ use std::{
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use types::{Block, ConsensusCommitment};
 struct ServerState {
     block_state: BlockStore,
@@ -64,8 +63,8 @@ struct ServerState {
     local_gossipper: Gossipper,
 }
 
-async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
-    let mut state_lock: tokio::sync::MutexGuard<'_, ServerState> = database.lock().await;
+async fn synchronization_loop(database: Arc<RwLock<ServerState>>) {
+    let mut state_lock = database.write().await;
     #[cfg(not(feature = "sqlite"))]
     let previous_block_height = state_lock.block_state.height - 1;
 
@@ -107,9 +106,9 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
     }
 }
 
-async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
+async fn consensus_loop(state: Arc<RwLock<ServerState>>) {
     let unix_timestamp = get_current_time();
-    let mut state_lock = state.lock().await;
+    let mut state_lock = state.write().await;
 
     #[cfg(not(feature = "sqlite"))]
     let last_block_unix_timestamp = state_lock
@@ -138,11 +137,6 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
         last_block_unix_timestamp,
         state_lock.consensus_state.validators.clone(),
     );
-
-    // todo: remove
-    let mut keypair = Keypair::new();
-    keypair.vk = committing_validator.clone();
-    println!("[Info] Committing Validator: {:?}", keypair.serialize_vk());
 
     println!(
         "[Info] Current round: {}",
@@ -178,6 +172,9 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
             .local_gossipper
             .gossip_consensus_commitment(commitment.clone())
             .await;
+        let proposing_validator =
+            evaluate_commitment(commitment, state_lock.consensus_state.validators.clone());
+        state_lock.consensus_state.round_winner = Some(proposing_validator);
         state_lock.consensus_state.committed = true;
     }
 
@@ -281,7 +278,7 @@ async fn main() {
         peers: PEERS.to_vec(),
         client: Client::new(),
     };
-    let shared_state: Arc<Mutex<ServerState>> = Arc::new(Mutex::new(ServerState {
+    let shared_state: Arc<RwLock<ServerState>> = Arc::new(RwLock::new(ServerState {
         block_state,
         pool_state,
         consensus_state,
@@ -297,7 +294,7 @@ async fn main() {
     );
     println!("{}", formatted_msg);
 
-    let synchronization_task = tokio::spawn({
+    /*let synchronization_task = tokio::spawn({
         let shared_state = Arc::clone(&shared_state);
         async move {
             loop {
@@ -306,7 +303,7 @@ async fn main() {
                 tokio::time::sleep(Duration::from_secs(20)).await;
             }
         }
-    });
+    });*/
     let consensus_task = tokio::spawn({
         let shared_state = Arc::clone(&shared_state);
         async move {
@@ -339,12 +336,12 @@ async fn main() {
     });
 
     tokio::select! {
-        sync_task_res = synchronization_task => {
+        /*sync_task_res = synchronization_task => {
             match sync_task_res {
                 Ok(_) => println!("{}", format_args!("{} Synchronization task concluded without error", "[Warning]".yellow())),
                 Err(e) => println!("{}", format_args!("{} Synchronization task failed with error: {}", "[Error]".red(), e))
             }
-        },
+        },*/
         consensus_task_res = consensus_task => {
             match consensus_task_res {
                 Ok(_) => println!("{}", format_args!("{} Consensus task concluded without error", "[Warning]".yellow())),

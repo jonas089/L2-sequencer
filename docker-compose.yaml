@@ -6,6 +6,8 @@ services:
     user: "1000:1000"
     environment:
       - PATH_TO_DB=/var/data/node-1.sqlite
+      - API_HOST_WITH_PORT=0.0.0.0:8080
+      - LOCAL_VALIDATOR=0
     networks:
       - rust-net
     ports:

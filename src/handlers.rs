@@ -1,5 +1,7 @@
+#[cfg(not(feature = "sqlite"))]
+use crate::state::server::InMemoryBlockStore;
 use crate::types::Block;
-use crate::{state::server::InMemoryBlockStore, ServerState};
+use crate::ServerState;
 use colored::Colorize;
 use patricia_trie::{
     insert_leaf,
@@ -7,8 +9,13 @@ use patricia_trie::{
 };
 use reqwest::Response;
 
+#[cfg(feature = "sqlite")]
+use crate::state::server::{BlockStore, SqLiteBlockStore, SqLiteTransactionPool};
+#[cfg(feature = "sqlite")]
+use patricia_trie::store::db::{sql, Database};
+
 pub async fn handle_synchronization_response(
-    state_lock: &mut tokio::sync::MutexGuard<'_, ServerState>,
+    state_lock: &mut tokio::sync::RwLockWriteGuard<'_, ServerState>,
     response: Response,
     next_height: u32,
 ) {

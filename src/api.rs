@@ -14,7 +14,7 @@ use patricia_trie::{
     store::types::{Hashable, Leaf, Node},
 };
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 use crate::{
     config::consensus::CONSENSUS_THRESHOLD,
@@ -26,10 +26,10 @@ use crate::{
 };
 
 pub async fn schedule(
-    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
+    Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
     Json(transaction): Json<Transaction>,
 ) -> String {
-    let mut state = shared_state.lock().await;
+    let mut state = shared_state.write().await;
     let success_response =
         format!("[Ok] Transaction is being sequenced: {:?}", &transaction).to_string();
     state.pool_state.insert_transaction(transaction);
@@ -37,10 +37,10 @@ pub async fn schedule(
 }
 
 pub async fn commit(
-    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
+    Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
     Json(commitment): Json<ConsensusCommitment>,
 ) -> String {
-    let mut state_lock = shared_state.lock().await;
+    let mut state_lock = shared_state.write().await;
     let success_response = format!("[Ok] Commitment was accepted: {:?}", &commitment).to_string();
     #[cfg(not(feature = "sqlite"))]
     let last_block_unix_timestamp = state_lock
@@ -70,10 +70,10 @@ pub async fn commit(
 }
 
 pub async fn propose(
-    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
+    Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
     Json(mut proposal): Json<Block>,
 ) -> String {
-    let mut state_lock: tokio::sync::MutexGuard<ServerState> = shared_state.lock().await;
+    let mut state_lock = shared_state.write().await;
     #[cfg(not(feature = "sqlite"))]
     let last_block_unix_timestamp = state_lock
         .block_state
@@ -285,10 +285,10 @@ pub async fn propose(
 }
 
 pub async fn merkle_proof(
-    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
+    Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
     Json(key): Json<Vec<u8>>,
 ) -> String {
-    let mut state_lock: tokio::sync::MutexGuard<ServerState> = shared_state.lock().await;
+    let mut state_lock = shared_state.write().await;
     let trie_root = state_lock.merkle_trie_root.clone();
     let merkle_proof = patricia_trie::merkle::merkle_proof(
         &mut state_lock.merkle_trie_state,
@@ -301,8 +301,8 @@ pub async fn merkle_proof(
     }
 }
 
-pub async fn get_pool(Extension(shared_state): Extension<Arc<Mutex<ServerState>>>) -> String {
-    let state = shared_state.lock().await;
+pub async fn get_pool(Extension(shared_state): Extension<Arc<RwLock<ServerState>>>) -> String {
+    let state = shared_state.read().await;
 
     #[cfg(not(feature = "sqlite"))]
     {
@@ -316,17 +316,17 @@ pub async fn get_pool(Extension(shared_state): Extension<Arc<Mutex<ServerState>>
 }
 
 pub async fn get_commitments(
-    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
+    Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
 ) -> String {
-    let state_lock = shared_state.lock().await;
+    let state_lock = shared_state.read().await;
     format!("{:?}", state_lock.consensus_state.commitments)
 }
 
 pub async fn get_block(
-    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
+    Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
     Path(height): Path<u32>,
 ) -> String {
-    let state_lock = shared_state.lock().await;
+    let state_lock = shared_state.read().await;
     println!(
         "{}",
         format_args!("{} Peer Requested Block #{}", "[Info]".green(), height)
@@ -348,9 +348,9 @@ pub async fn get_block(
 }
 
 pub async fn get_state_root_hash(
-    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
+    Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
 ) -> String {
-    let state_lock = shared_state.lock().await;
+    let state_lock = shared_state.read().await;
     match serde_json::to_string(&state_lock.merkle_trie_root) {
         Ok(trie_root_json) => trie_root_json,
         Err(e) => e.to_string(),
