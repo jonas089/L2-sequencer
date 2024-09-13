@@ -296,7 +296,7 @@ async fn main() {
             loop {
                 // for now the loop syncs one block at a time, this can be optimized
                 synchronization_loop(Arc::clone(&shared_state)).await;
-                tokio::time::sleep(Duration::from_secs(20)).await;
+                tokio::time::sleep(Duration::from_secs(60)).await;
             }
         }
     });
