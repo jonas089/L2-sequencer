@@ -5,7 +5,7 @@ use k256::ecdsa::{SigningKey, VerifyingKey};
 // specified in seconds
 pub const CLEARING_PHASE_DURATION: u32 = 10;
 pub const ROUND_DURATION: u32 = 120;
-pub const CONSENSUS_THRESHOLD: u32 = 4;
+pub const CONSENSUS_THRESHOLD: u32 = 3;
 
 pub const TEST_V1_SK: &[u8] = &[
     197, 131, 252, 199, 111, 171, 195, 194, 6, 111, 156, 165, 24, 173, 168, 49, 220, 204, 234, 73,

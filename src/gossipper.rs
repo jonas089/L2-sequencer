@@ -89,7 +89,7 @@ impl Gossipper {
                     .post(format!("http://{}{}", &peer_clone, "/commit"))
                     .header("Content-Type", "application/json")
                     .body(json_commitment_clone)
-                    .timeout(Duration::from_secs(30))
+                    .timeout(Duration::from_secs(10))
                     .send()
                     .await
                 {

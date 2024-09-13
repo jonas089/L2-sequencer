@@ -99,6 +99,8 @@ pub async fn propose(
                         if proposal.to_bytes() < v.clone() {
                             state_lock.consensus_state.lowest_block = Some(proposal.to_bytes());
                             false
+                        } else if proposal.to_bytes() == v.clone() {
+                            false
                         } else {
                             true
                         }
@@ -150,6 +152,10 @@ pub async fn propose(
                         is_signed = true;
                     }
                 }
+                println!(
+                    "[Info] Commitment count for proposal: {}",
+                    &commitment_count
+                );
                 if commitment_count >= CONSENSUS_THRESHOLD {
                     println!(
                         "{}",
@@ -228,7 +234,7 @@ pub async fn propose(
                                 .timestamp,
                         )
                         .await;
-                    // allow signing of infinitely lower blocks
+                    // allow signing of infinite lower blocks
                     // state_lock.consensus_state.signed = true;
                 } else {
                     println!(

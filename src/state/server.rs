@@ -312,5 +312,6 @@ impl InMemoryConsensus {
         self.proposed = false;
         self.committed = false;
         self.signed = false;
+        self.lowest_block = None;
     }
 }

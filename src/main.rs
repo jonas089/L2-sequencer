@@ -220,7 +220,9 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
         .collect();
     #[cfg(feature = "sqlite")]
     let transactions = state_lock.pool_state.get_all_transactions();
-    if state_lock.consensus_state.local_validator == proposing_validator {
+    if state_lock.consensus_state.local_validator == proposing_validator
+        && !state_lock.consensus_state.proposed
+    {
         let mut proposed_block = Block {
             height: state_lock.block_state.height,
             signature: None,
