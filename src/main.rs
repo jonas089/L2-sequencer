@@ -102,11 +102,9 @@ async fn synchronization_loop_with_finality(database: Arc<RwLock<ServerState>>) 
                 if peer_height.is_none() {
                     continue;
                 }
-                // todo: if peer_height > 10 && peer_height >= next_height:
-                //  - request the peer[n-10..n] and replace if < local
                 // else if peer_height >= next_height:
                 // for i in next_height..peer_height:
-                // - get and store
+                // - get & store
             }
             _ => {}
         }

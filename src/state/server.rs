@@ -73,6 +73,7 @@ impl SqLiteBlockStore for BlockStore {
             })
             .unwrap_or(None);
 
+        // todo: don't expect this
         bincode::deserialize(
             &block_serialized.expect(&format!("[Error] Block not found: {}", &height)),
         )
