@@ -1,5 +1,5 @@
 # Distributed L2 Sequencer
-Read the full [Whitepaper](https://github.com/jonas089/PoRD/tree/master/whitepaper)
+Read the full [Whitepaper](https://github.com/jonas089/PoRD/blob/master/whitepaper%2Fsequencer.md)
 
 :green_heart: Support the Dev on [Ethereum](https://etherscan.io/address/0x595208520ec81234095bFe62eb52B4fc2A7e4928) :green_heart:
 
