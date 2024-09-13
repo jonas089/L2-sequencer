@@ -3,8 +3,6 @@ Read the full [Whitepaper](https://github.com/jonas089/PoRD/blob/master/whitepap
 
 :green_heart: Support the Dev on [Ethereum](https://etherscan.io/address/0x595208520ec81234095bFe62eb52B4fc2A7e4928) :green_heart:
 
-Latest Prototype [release](https://github.com/jonas089/L2-sequencer/blob/proto-0.0.1/README.md)
-
 # Recommended: Run an sqlite Network Automatically: Docker Support
 I began taking this passion project quite serious, so I added an SQLite DB to store Blocks and Transactions.
 Transactions are still read as a single chunk so the txpool for each Block must fit in memory, I do intend to change this.
@@ -97,3 +95,6 @@ The merkle proof can be verified against the Root Hash of the Trie that it was r
 ```
 
 Note that `verify_merkle_proof` will revert if the merkle proof is invalid / doesn't sum up to the provided Trie Root.
+
+Latest Prototype [release v0.0.1](https://github.com/jonas089/L2-sequencer/blob/proto-0.0.1/README.md)
+
