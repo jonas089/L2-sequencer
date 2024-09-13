@@ -27,4 +27,4 @@ RUN mkdir -p /var/data/
 RUN chmod -R 777 /var/data/
 
 # Set the entrypoint to run the compiled binary
-CMD ["./target/release/pord-sequencer"]
+CMD ["./target/release/l2-sequencer"]

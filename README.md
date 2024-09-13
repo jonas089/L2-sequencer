@@ -1,6 +1,4 @@
 # Distributed L2 Sequencer
-This project is based on my half-baked consensus protocol [Proof of Random Delta](https://github.com/jonas089/PoRD)
-
 Read the full [Whitepaper](https://github.com/jonas089/PoRD/tree/master/whitepaper)
 
 

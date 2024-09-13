@@ -16,14 +16,11 @@ use axum::{
 };
 use colored::*;
 use config::{
-    consensus::{
-        ACCUMULATION_PHASE_DURATION, COMMITMENT_PHASE_DURATION, CONSENSUS_THRESHOLD,
-        MAX_ROUNDS_FALLBACK, ROUND_DURATION,
-    },
+    consensus::{CLEARING_PHASE_DURATION, ROUND_DURATION},
     network::PEERS,
 };
-use consensus::logic::evaluate_commitments;
-use crypto::ecdsa::deserialize_vk;
+use consensus::logic::{current_round, get_committing_validator};
+use crypto::ecdsa::Keypair;
 use gossipper::Gossipper;
 use k256::ecdsa::{signature::SignerMut, Signature};
 
@@ -61,7 +58,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::Mutex;
-use types::{Block, ConsensusCommitment, GenericPublicKey};
+use types::{Block, ConsensusCommitment};
 struct ServerState {
     block_state: BlockStore,
     pool_state: TransactionPool,
@@ -143,12 +140,7 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
                     );
                 }
             }
-            None => {
-                println!(
-                    "{}",
-                    format_args!("{} Resource is Busy", "[Warning]".yellow())
-                )
-            }
+            _ => {}
         }
     }
 }
@@ -160,33 +152,38 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
         .block_state
         .get_block_by_height(state_lock.block_state.height - 1)
         .timestamp;
-    let round = (get_current_time() - last_block_unix_timestamp)
-        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION + ROUND_DURATION)
-        + 1;
-    let comm_size = match state_lock
-        .consensus_state
-        .commitments
-        .get(round as usize - 1)
-    {
-        Some(c) => c.len(),
-        None => 0,
-    };
-    println!("[Info] Commitments: {}", comm_size);
-    println!(
-        "[Info] Commitment round: {} / {}",
-        &round, MAX_ROUNDS_FALLBACK
-    );
+
+    // check if clearing phase of new consensus round
     if unix_timestamp
-        > (last_block_unix_timestamp
-            + (COMMITMENT_PHASE_DURATION)
-            + ((round - 1) * (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION)))
-        && !state_lock.consensus_state.committed[round as usize - 1]
+        <= last_block_unix_timestamp
+            + ((((unix_timestamp - last_block_unix_timestamp) / (ROUND_DURATION)) * ROUND_DURATION)
+                + CLEARING_PHASE_DURATION)
     {
-        println!(
-            "{}",
-            format_args!("{} Generating ZK Random Number", "[Info]".green())
-        );
-        let random_zk_commitment = generate_random_number(
+        state_lock.consensus_state.reinitialize();
+        // establish finality over the most recent block
+        return;
+    }
+
+    let committing_validator = get_committing_validator(
+        last_block_unix_timestamp,
+        state_lock.consensus_state.validators.clone(),
+    );
+
+    // todo: remove
+    let mut keypair = Keypair::new();
+    keypair.vk = committing_validator.clone();
+    println!("[Info] Committing Validator: {:?}", keypair.serialize_vk());
+
+    println!(
+        "[Info] Current round: {}",
+        current_round(last_block_unix_timestamp)
+    );
+
+    if state_lock.consensus_state.local_validator == committing_validator
+        && !state_lock.consensus_state.committed
+    {
+        println!("[Info] Node is ready to commit");
+        let random_zk_number = generate_random_number(
             state_lock
                 .consensus_state
                 .local_validator
@@ -200,126 +197,50 @@ async fn consensus_loop(state: Arc<Mutex<ServerState>>) {
                 .local_validator
                 .to_sec1_bytes()
                 .to_vec(),
-            receipt: random_zk_commitment,
+            receipt: random_zk_number,
         };
-        match state_lock
-            .consensus_state
-            .commitments
-            .get_mut(round as usize - 1)
-        {
-            Some(r) => r.push(commitment.clone()),
-            None => state_lock
-                .consensus_state
-                .commitments
-                .push(vec![commitment.clone()]),
-        }
+        let _ = state_lock
+            .local_gossipper
+            .gossip_consensus_commitment(commitment.clone())
+            .await;
+        state_lock.consensus_state.committed = true;
+    }
+
+    if state_lock.consensus_state.round_winner.is_none() {
+        return;
+    }
+
+    let proposing_validator = state_lock.consensus_state.round_winner.unwrap();
+    #[cfg(not(feature = "sqlite"))]
+    let transactions = state_lock
+        .pool_state
+        .transactions
+        .values()
+        .cloned()
+        .collect();
+    #[cfg(feature = "sqlite")]
+    let transactions = state_lock.pool_state.get_all_transactions();
+    if state_lock.consensus_state.local_validator == proposing_validator {
+        let mut proposed_block = Block {
+            height: state_lock.block_state.height,
+            signature: None,
+            transactions,
+            commitments: None,
+            timestamp: unix_timestamp,
+        };
+        let mut signing_key = state_lock.consensus_state.local_signing_key.clone();
+        let signature: Signature = signing_key.sign(&proposed_block.to_bytes());
+        proposed_block.signature = Some(signature.to_bytes().to_vec());
         println!(
             "{}",
-            format_args!("{} Gossipping Consensus Commitment", "[Info]".green())
+            format_args!("{} Gossipping proposed Block", "[Info]".green())
         );
         let _ = state_lock
             .local_gossipper
-            .gossip_consensus_commitment(commitment)
+            .gossip_pending_block(proposed_block, last_block_unix_timestamp)
             .await;
-        if round > state_lock.consensus_state.committed.len() as u32 {
-            panic!("Exceeded the consensus round limit for this block, the network got stuck!");
-        }
-        state_lock.consensus_state.committed[round as usize - 1] = true;
-    }
-
-    let round_commitment_count: u32 = match state_lock
-        .consensus_state
-        .commitments
-        .get(round as usize - 1)
-    {
-        Some(c) => c.len() as u32,
-        None => 0,
-    };
-
-    if unix_timestamp
-        > (last_block_unix_timestamp
-            + ACCUMULATION_PHASE_DURATION
-            + COMMITMENT_PHASE_DURATION
-            + ((round - 1) * (ACCUMULATION_PHASE_DURATION + COMMITMENT_PHASE_DURATION)))
-        && round_commitment_count >= CONSENSUS_THRESHOLD
-        && !state_lock.consensus_state.proposed[round as usize - 1]
-    {
-        println!("[Info] Choosing new round winner: {}", &round);
-        let round_winner: GenericPublicKey = evaluate_commitments(
-            state_lock
-                .consensus_state
-                .commitments
-                .get(round as usize - 1)
-                .unwrap()
-                .clone(),
-        );
-        /* TODO: revisit
-
-        match state_lock
-            .consensus_state
-            .round_winners
-            .get_mut(round as usize - 1)
-        {
-            Some(_) => println!("[Err] Round winner exists prior to consensus evaluation phase"),
-            None => {
-                state_lock
-                    .consensus_state
-                    .round_winners
-                    .push(deserialize_vk(&round_winner));
-            }
-        }*/
-
-        state_lock
-            .consensus_state
-            .round_winners
-            .push(deserialize_vk(&round_winner));
-
-        // if this node won the round it will propose the new Block
-        let unix_timestamp = get_current_time();
-        if round_winner
-            == state_lock
-                .consensus_state
-                .local_validator
-                .to_sec1_bytes()
-                .to_vec()
-        {
-            #[cfg(not(feature = "sqlite"))]
-            let transactions = state_lock
-                .pool_state
-                .transactions
-                .values()
-                .cloned()
-                .collect();
-            #[cfg(feature = "sqlite")]
-            let transactions = state_lock.pool_state.get_all_transactions();
-            let mut proposed_block = Block {
-                height: state_lock.block_state.height,
-                signature: None,
-                transactions,
-                commitments: None,
-                timestamp: unix_timestamp,
-            };
-            let mut signing_key = state_lock.consensus_state.local_signing_key.clone();
-            let signature: Signature = signing_key.sign(&proposed_block.to_bytes());
-            proposed_block.signature = Some(signature.to_bytes().to_vec());
-            println!(
-                "{}",
-                format_args!("{} Gossipping proposed Block", "[Info]".green())
-            );
-            let _ = state_lock
-                .local_gossipper
-                .gossip_pending_block(proposed_block, last_block_unix_timestamp)
-                .await;
-            println!(
-                "{}",
-                format_args!("{} Block was proposed successfully", "[Info]".green())
-            );
-            state_lock.pool_state.reinitialize();
-        }
-        if round > state_lock.consensus_state.committed.len() as u32 {
-            panic!("Exceeded the consensus round limit for this block, the network got stuck!");
-        }
-        state_lock.consensus_state.proposed[round as usize - 1] = true;
+        state_lock.consensus_state.proposed = true;
+        state_lock.pool_state.reinitialize()
     }
 }
 

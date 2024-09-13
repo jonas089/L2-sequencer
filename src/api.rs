@@ -8,7 +8,7 @@ use k256::ecdsa::{
     signature::{SignerMut, Verifier},
     Signature,
 };
-use l2_sequencer::config::consensus::{ACCUMULATION_PHASE_DURATION, ROUND_DURATION};
+use l2_sequencer::config::consensus::ROUND_DURATION;
 use patricia_trie::{
     insert_leaf,
     store::types::{Hashable, Leaf, Node},
@@ -17,8 +17,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::{
-    config::consensus::{COMMITMENT_PHASE_DURATION, CONSENSUS_THRESHOLD},
-    consensus::logic::get_committing_validator,
+    config::consensus::CONSENSUS_THRESHOLD,
+    consensus::logic::{current_round, evaluate_commitment, get_committing_validator},
     crypto::ecdsa::deserialize_vk,
     get_current_time,
     types::{Block, BlockCommitment, ConsensusCommitment, GenericSignature, Transaction},
@@ -36,7 +36,7 @@ pub async fn schedule(
     success_response
 }
 
-pub async fn commit_consensus_v2(
+pub async fn commit(
     Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
     Json(commitment): Json<ConsensusCommitment>,
 ) -> String {
@@ -46,10 +46,7 @@ pub async fn commit_consensus_v2(
         .block_state
         .get_block_by_height(state_lock.block_state.height - 1)
         .timestamp;
-    let round = (get_current_time() - last_block_unix_timestamp)
-        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION + ROUND_DURATION)
-        + 1;
-    if state_lock.consensus_state.round_winners.len() < round as usize {
+    if !state_lock.consensus_state.round_winner.is_some() {
         // no round winner found, commitment might be valid
         let validator = get_committing_validator(
             last_block_unix_timestamp,
@@ -57,28 +54,11 @@ pub async fn commit_consensus_v2(
         );
         // todo: check if commitment signature is valid for validator
         if deserialize_vk(&commitment.validator) == validator {
-            // todo: choose new winner
+            let winner =
+                evaluate_commitment(commitment, state_lock.consensus_state.validators.clone());
+            state_lock.consensus_state.round_winner = Some(winner);
         }
     }
-    success_response
-}
-
-pub async fn commit(
-    Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
-    Json(commitment): Json<ConsensusCommitment>,
-) -> String {
-    let mut state_lock = shared_state.lock().await;
-    let success_response = format!("[Ok] Commitment was accepted: {:?}", &commitment).to_string();
-    let last_block_unix_timestamp: u32 = state_lock
-        .block_state
-        .get_block_by_height(state_lock.block_state.height - 1)
-        .timestamp;
-    let round = (get_current_time() - last_block_unix_timestamp)
-        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION + ROUND_DURATION)
-        + 1;
-    state_lock
-        .consensus_state
-        .insert_commitment(commitment, round - 1);
     success_response
 }
 
@@ -86,10 +66,6 @@ pub async fn propose(
     Extension(shared_state): Extension<Arc<Mutex<ServerState>>>,
     Json(mut proposal): Json<Block>,
 ) -> String {
-    println!(
-        "{}",
-        format_args!("{} Proposal was received", "[Info]".green())
-    );
     let mut state_lock: tokio::sync::MutexGuard<ServerState> = shared_state.lock().await;
     let last_block_unix_timestamp = state_lock
         .block_state
@@ -97,13 +73,8 @@ pub async fn propose(
         .timestamp;
     let error_response = format!("Block was rejected: {:?}", &proposal).to_string();
 
-    let round = (get_current_time() - last_block_unix_timestamp)
-        / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION + ROUND_DURATION)
-        + 1;
-    if proposal.timestamp
-        < last_block_unix_timestamp
-            + ((round - 1) * (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION))
-    {
+    let round = current_round(last_block_unix_timestamp);
+    if proposal.timestamp < last_block_unix_timestamp + ((round - 1) * (ROUND_DURATION)) {
         println!(
             "[Warning] Invalid Proposal Timestamp: {}",
             proposal.timestamp
@@ -115,18 +86,31 @@ pub async fn propose(
         println!("[Warning] Invalid Proposal Height: {}", &proposal.height);
         return error_response;
     }
-    println!("[Info] Proposal Height: {}", &proposal.height);
-    // if the block is complete, store it and reset memory db
-    // if the block is incomplete, attest to it (in case this node hasn't yet done that)
-    // and gossip it
     let block_signature = proposal
         .signature
         .clone()
         .expect("Block has not been signed!");
-    if let Some(round_winner) = state_lock.consensus_state.round_winners.last() {
+    if let Some(round_winner) = state_lock.consensus_state.round_winner {
         let signature_deserialized = Signature::from_slice(&block_signature).unwrap();
         match round_winner.verify(&proposal.to_bytes(), &signature_deserialized) {
             Ok(_) => {
+                let early_revert: bool = match &state_lock.consensus_state.lowest_block {
+                    Some(v) => {
+                        if proposal.to_bytes() < v.clone() {
+                            state_lock.consensus_state.lowest_block = Some(proposal.to_bytes());
+                            false
+                        } else {
+                            true
+                        }
+                    }
+                    None => {
+                        state_lock.consensus_state.lowest_block = Some(proposal.to_bytes());
+                        false
+                    }
+                };
+                if early_revert {
+                    return error_response;
+                }
                 // sign the block if it has not been signed yet
                 let mut is_signed = false;
                 let block_commitments = proposal.commitments.clone().unwrap_or(Vec::new());
@@ -212,8 +196,8 @@ pub async fn propose(
                             state_lock.merkle_trie_root.hash
                         )
                     );
-                    state_lock.consensus_state.reinitialize();
-                } else if !is_signed {
+                    //state_lock.consensus_state.reinitialize();
+                } else if !is_signed && !state_lock.consensus_state.signed {
                     let mut local_sk = state_lock.consensus_state.local_signing_key.clone();
                     let block_bytes = proposal.to_bytes();
                     let signature: Signature = local_sk.sign(&block_bytes);
@@ -237,13 +221,15 @@ pub async fn propose(
                     let _ = state_lock
                         .local_gossipper
                         .gossip_pending_block(
-                            proposal,
+                            proposal.clone(),
                             state_lock
                                 .block_state
                                 .get_block_by_height(state_lock.block_state.height - 1)
                                 .timestamp,
                         )
                         .await;
+                    // allow signing of infinitely lower blocks
+                    // state_lock.consensus_state.signed = true;
                 } else {
                     println!(
                         "{}",

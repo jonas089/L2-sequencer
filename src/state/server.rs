@@ -1,5 +1,4 @@
 use k256::ecdsa::{SigningKey, VerifyingKey};
-use l2_sequencer::config::consensus::MAX_ROUNDS_FALLBACK;
 #[cfg(feature = "sqlite")]
 use rusqlite::{params, Connection};
 
@@ -254,10 +253,11 @@ pub struct InMemoryConsensus {
     pub local_validator: VerifyingKey,
     pub local_signing_key: SigningKey,
     pub commitments: Vec<Vec<ConsensusCommitment>>,
-    pub current_round: u32,
-    pub round_winners: Vec<VerifyingKey>,
-    pub proposed: [bool; MAX_ROUNDS_FALLBACK as usize],
-    pub committed: [bool; MAX_ROUNDS_FALLBACK as usize],
+    pub round_winner: Option<VerifyingKey>,
+    pub proposed: bool,
+    pub committed: bool,
+    pub signed: bool,
+    pub lowest_block: Option<Vec<u8>>,
 }
 
 impl InMemoryConsensus {
@@ -268,10 +268,11 @@ impl InMemoryConsensus {
             local_validator: v1_vk_deserialized(),
             local_signing_key: v2_sk_deserialized(),
             commitments: Vec::new(),
-            current_round: 0,
-            round_winners: Vec::new(),
-            proposed: [false; MAX_ROUNDS_FALLBACK as usize],
-            committed: [false; MAX_ROUNDS_FALLBACK as usize],
+            round_winner: None,
+            proposed: false,
+            committed: false,
+            signed: false,
+            lowest_block: None,
         }
     }
     pub fn empty_with_default_validators() -> InMemoryConsensus {
@@ -298,43 +299,18 @@ impl InMemoryConsensus {
             local_validator: local_validator.1,
             local_signing_key: local_validator.0,
             commitments: Vec::new(),
-            current_round: 0,
-            round_winners: Vec::new(),
-            proposed: [false; MAX_ROUNDS_FALLBACK as usize],
-            committed: [false; MAX_ROUNDS_FALLBACK as usize],
-        }
-    }
-    pub fn insert_commitment(&mut self, commitment: ConsensusCommitment, round: u32) {
-        // this is an inconvenient check, Receipt does not implement ParitalEq
-        // come up with a better solution in the future
-        // luckily the list of consensus commitments will be relatively small in memory
-        let commitments = self.commitments.get_mut(round as usize);
-        // iterate over all of them to see if the validator exists
-        match commitments {
-            Some(v) => {
-                for c in v {
-                    if c.validator == commitment.validator {
-                        return;
-                    }
-                }
-            }
-            None => {}
-        }
-
-        match self.commitments.get_mut(round as usize) {
-            Some(v) => {
-                v.push(commitment);
-            }
-            None => {
-                self.commitments.insert(round as usize, vec![commitment]);
-            }
+            round_winner: None,
+            proposed: false,
+            committed: false,
+            signed: false,
+            lowest_block: None,
         }
     }
     pub fn reinitialize(&mut self) {
         self.commitments = Vec::new();
-        self.round_winners = Vec::new();
-        self.current_round = 0;
-        self.proposed = [false; MAX_ROUNDS_FALLBACK as usize];
-        self.committed = [false; MAX_ROUNDS_FALLBACK as usize];
+        self.round_winner = None;
+        self.proposed = false;
+        self.committed = false;
+        self.signed = false;
     }
 }

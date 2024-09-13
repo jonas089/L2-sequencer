@@ -1,10 +1,6 @@
 use std::{env, time::Duration};
 
-use crate::{
-    config::consensus::{ACCUMULATION_PHASE_DURATION, COMMITMENT_PHASE_DURATION, ROUND_DURATION},
-    get_current_time,
-    types::Block,
-};
+use crate::{consensus::logic::current_round, types::Block};
 use colored::Colorize;
 use reqwest::{Client, Response};
 use tokio::time::sleep;
@@ -35,63 +31,43 @@ async fn send_proposal(client: Client, peer: Peer, json_block: String) -> Option
 
 impl Gossipper {
     pub async fn gossip_pending_block(&self, block: Block, last_block_unix_timestamp: u32) {
-        // try to collect attestations for the proposal and
-        // store it eventually (if it reaches the threshold)
-        // stop porposing before the new round begins
-        // the new round will either introduce a new block,
-        // or attempt to recreate this one
         for peer in self.peers.clone() {
             let client_clone = self.client.clone();
             let peer_clone = peer;
             let json_block: String = serde_json::to_string(&block).unwrap();
-            // todo: make this generic for n amount of nodes
+
+            // todo: revisit
             let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
-            if this_node == "0.0.0.0:8080" && peer == "rust-node-1:8080" {
+            if docker_skip_self(&this_node, peer) {
                 continue;
-            } else if this_node == "0.0.0.0:8081" && peer == "rust-node-2:8080" {
-                continue;
-            }
-            println!(
-                "{}",
-                format_args!("{} Sending Block to Peer: {}", "[Info]".green(), &peer)
-            );
+            };
+
             tokio::spawn(async move {
-                let start_round = (get_current_time() - last_block_unix_timestamp)
-                    / (COMMITMENT_PHASE_DURATION + ACCUMULATION_PHASE_DURATION + ROUND_DURATION)
-                    + 1;
-                loop {
-                    let round = (get_current_time() - last_block_unix_timestamp)
-                        / (COMMITMENT_PHASE_DURATION
-                            + ACCUMULATION_PHASE_DURATION
-                            + ROUND_DURATION)
-                        + 1;
-                    if start_round < round {
-                        //println!("[Err] Refusing to gossip old Block");
-                        break;
-                    }
-                    let response =
-                        match send_proposal(client_clone.clone(), peer_clone, json_block.clone())
-                            .await
-                        {
-                            Some(r) => r
-                                .text()
-                                .await
-                                .unwrap_or("[Err] Peer unresponsive".to_string()),
-                            None => "[Err] Failed to send request".to_string(),
-                        };
-                    if response == "[Ok] Block was processed" {
-                        println!(
-                            "{}",
-                            format_args!(
-                                "{} Block was successfully sent to peer: {}",
-                                "[Info]".green(),
-                                &peer_clone
-                            )
-                        );
-                        break;
-                    }
-                    sleep(Duration::from_secs(3)).await;
+                let start_round = current_round(last_block_unix_timestamp);
+                let round = current_round(last_block_unix_timestamp);
+                if start_round < round {
+                    println!("[Warning] Gossipping old Block");
                 }
+                let response =
+                    match send_proposal(client_clone.clone(), peer_clone, json_block.clone()).await
+                    {
+                        Some(r) => r
+                            .text()
+                            .await
+                            .unwrap_or("[Err] Peer unresponsive".to_string()),
+                        None => "[Err] Failed to send request".to_string(),
+                    };
+                if response == "[Ok] Block was processed" {
+                    println!(
+                        "{}",
+                        format_args!(
+                            "{} Block was successfully sent to peer: {}",
+                            "[Info]".green(),
+                            &peer_clone
+                        )
+                    );
+                }
+                sleep(Duration::from_secs(3)).await;
             });
         }
     }
@@ -102,13 +78,12 @@ impl Gossipper {
             let peer_clone = peer;
             let json_commitment_clone: String = json_commitment.clone();
 
-            // todo: make this generic for n amount of nodes
+            // todo: revisit
             let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
-            if this_node == "0.0.0.0:8080" && peer == "rust-node-1:8080" {
+            if docker_skip_self(&this_node, peer) {
                 continue;
-            } else if this_node == "0.0.0.0:8081" && peer == "rust-node-2:8080" {
-                continue;
-            }
+            };
+
             tokio::spawn(async move {
                 match client_clone
                     .post(format!("http://{}{}", &peer_clone, "/commit"))
@@ -134,4 +109,13 @@ impl Gossipper {
             });
         }
     }
+}
+
+fn docker_skip_self(this_node: &str, peer: &str) -> bool {
+    if this_node == "0.0.0.0:8080" && peer == "rust-node-1:8080" {
+        return true;
+    } else if this_node == "0.0.0.0:8081" && peer == "rust-node-2:8080" {
+        return true;
+    }
+    false
 }
