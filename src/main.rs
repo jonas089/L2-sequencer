@@ -77,6 +77,7 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
     let previous_block_height = state_lock.block_state.current_block_height() - 1;
 
     let next_height = previous_block_height + 1;
+    println!("[Info] Starting Synchronisation, target: {}", &next_height);
     let gossipper = Gossipper {
         peers: PEERS.to_vec(),
         client: Client::new(),
@@ -108,9 +109,16 @@ async fn synchronization_loop(database: Arc<Mutex<ServerState>>) {
                 let block_serialized = response.text().await.unwrap();
                 if block_serialized != "[Warning] Requested Block that does not exist" {
                     let block: Block = serde_json::from_str(&block_serialized).unwrap();
+                    #[cfg(not(feature = "sqlite"))]
+                    state_lock
+                        .block_state
+                        .insert_block(next_height - 1, block.clone());
+
+                    #[cfg(feature = "sqlite")]
                     state_lock
                         .block_state
                         .insert_block(next_height, block.clone());
+
                     // insert transactions into the trie
                     let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
                     let transactions = &block.transactions;

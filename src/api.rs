@@ -179,6 +179,12 @@ pub async fn propose(
                         format_args!("{} Received Valid Block", "[Info]".green())
                     );
 
+                    #[cfg(not(feature = "sqlite"))]
+                    state_lock
+                        .block_state
+                        .insert_block(proposal.height - 1, proposal.clone());
+
+                    #[cfg(feature = "sqlite")]
                     state_lock
                         .block_state
                         .insert_block(proposal.height, proposal.clone());
@@ -329,7 +335,7 @@ pub async fn get_block(
     let previous_block_height = state_lock.block_state.height - 1;
 
     #[cfg(feature = "sqlite")]
-    let previous_block_height = state_lock.block_state.current_block_height() - 1;
+    let previous_block_height = state_lock.block_state.current_block_height();
 
     if previous_block_height < height + 1 {
         "[Warning] Requested Block that does not exist".to_string()
