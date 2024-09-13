@@ -346,7 +346,7 @@ async fn main() {
             loop {
                 // for now the loop syncs one block at a time, this can be optimized
                 synchronization_loop(Arc::clone(&shared_state)).await;
-                tokio::time::sleep(Duration::from_secs(60)).await;
+                tokio::time::sleep(Duration::from_secs(120)).await;
             }
         }
     });
@@ -355,7 +355,7 @@ async fn main() {
         async move {
             loop {
                 consensus_loop(Arc::clone(&shared_state)).await;
-                tokio::time::sleep(Duration::from_secs(5)).await;
+                tokio::time::sleep(Duration::from_secs(10)).await;
             }
         }
     });
