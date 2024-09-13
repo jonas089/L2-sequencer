@@ -1,5 +1,5 @@
 use k256::ecdsa::{SigningKey, VerifyingKey};
-use pord_sequencer::config::consensus::MAX_ROUNDS_FALLBACK;
+use l2_sequencer::config::consensus::MAX_ROUNDS_FALLBACK;
 #[cfg(feature = "sqlite")]
 use rusqlite::{params, Connection};
 

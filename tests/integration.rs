@@ -1,17 +1,17 @@
 #[cfg(test)]
 mod tests {
+    use l2_sequencer::types::Transaction;
     use patricia_trie::{
         merkle::{verify_merkle_proof, MerkleProof},
         store::types::{Hashable, Leaf, Root},
     };
-    use pord_sequencer::types::Transaction;
     use prover::generate_random_number;
     use reqwest::{Client, Response};
     use std::{env, time::Duration};
     use tokio::time::sleep;
     use {
-        pord_sequencer::config::network::PEERS, pord_sequencer::gossipper::Gossipper,
-        pord_sequencer::types::ConsensusCommitment,
+        l2_sequencer::config::network::PEERS, l2_sequencer::gossipper::Gossipper,
+        l2_sequencer::types::ConsensusCommitment,
     };
 
     async fn submit_transaction(client: Client, transaction_json: String) -> Response {

@@ -1,11 +1,11 @@
 use crate::types::{ConsensusCommitment, GenericPublicKey};
 use k256::ecdsa::VerifyingKey;
-use num_bigint::BigInt;
-use num_traits::{Signed, ToPrimitive};
-use pord_sequencer::{
+use l2_sequencer::{
     config::consensus::{ACCUMULATION_PHASE_DURATION, COMMITMENT_PHASE_DURATION, ROUND_DURATION},
     get_current_time,
 };
+use num_bigint::BigInt;
+use num_traits::{Signed, ToPrimitive};
 use zk_logic::{random_bytes_to_int, types::CircuitOutputs};
 
 pub fn evaluate_commitments(commitments: Vec<ConsensusCommitment>) -> GenericPublicKey {

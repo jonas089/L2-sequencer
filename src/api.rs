@@ -8,11 +8,11 @@ use k256::ecdsa::{
     signature::{SignerMut, Verifier},
     Signature,
 };
+use l2_sequencer::config::consensus::{ACCUMULATION_PHASE_DURATION, ROUND_DURATION};
 use patricia_trie::{
     insert_leaf,
     store::types::{Hashable, Leaf, Node},
 };
-use pord_sequencer::config::consensus::{ACCUMULATION_PHASE_DURATION, ROUND_DURATION};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
