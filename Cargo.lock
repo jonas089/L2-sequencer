@@ -40,9 +40,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.88"
+version = "1.0.89"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e1496f8fb1fbf272686b8d37f523dab3e4a7443300055e74cdaa449f3114356"
+checksum = "86fdf8605db99b54d3cd748a44c6d04df638eb5dafb219b135d0149bd0db01f6"
 
 [[package]]
 name = "ark-bn254"
@@ -460,9 +460,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.1.18"
+version = "1.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b62ac837cdb5cb22e10a256099b4fc502b1dfe560cb282963a974d7abd80e476"
+checksum = "2d74707dde2ba56f86ae90effb3b43ddd369504387e718014de010cec7959800"
 dependencies = [
  "shlex",
 ]
@@ -1495,7 +1495,7 @@ checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 [[package]]
 name = "patricia-trie"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/jonas089-trie#99c42e57957feb623e4fffba5cdde0852fbc69ea"
+source = "git+https://github.com/jonas089/jonas089-trie#27030930f7cd65c3b9f0d877c6e2810fd8c3dffb"
 dependencies = [
  "bincode",
  "rusqlite",
@@ -1631,7 +1631,7 @@ dependencies = [
 [[package]]
 name = "prover"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/L2-sequencer-utils#9a42a24976515595af61ad7f604715f2191f2c82"
+source = "git+https://github.com/jonas089/L2-sequencer-utils#bd1a0ff80fdbc64c91943b5ad5fae91d1ccfdb80"
 dependencies = [
  "rand",
  "risc0-zkvm",
@@ -3050,7 +3050,7 @@ dependencies = [
 [[package]]
 name = "zk-logic"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/L2-sequencer-utils#9a42a24976515595af61ad7f604715f2191f2c82"
+source = "git+https://github.com/jonas089/L2-sequencer-utils#bd1a0ff80fdbc64c91943b5ad5fae91d1ccfdb80"
 dependencies = [
  "num-bigint",
  "serde",
@@ -3060,7 +3060,7 @@ dependencies = [
 [[package]]
 name = "zk-methods"
 version = "0.1.0"
-source = "git+https://github.com/jonas089/L2-sequencer-utils#9a42a24976515595af61ad7f604715f2191f2c82"
+source = "git+https://github.com/jonas089/L2-sequencer-utils#bd1a0ff80fdbc64c91943b5ad5fae91d1ccfdb80"
 dependencies = [
  "risc0-build",
 ]
