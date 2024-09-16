@@ -4,7 +4,7 @@ Read the full [Whitepaper](https://github.com/jonas089/PoRD/blob/master/whitepap
 :green_heart: Support the Dev on [Ethereum](https://etherscan.io/address/0x595208520ec81234095bFe62eb52B4fc2A7e4928) :green_heart:
 
 # Recommended: Run an sqlite Network Automatically: Docker Support
-I began taking this passion project quite serious, so I added an SQLite DB to store Blocks and Transactions.
+I began taking this passion project quite seriously, so I added an SQLite DB to store Blocks and Transactions.
 Transactions are still read as a single chunk so the txpool for each Block must fit in memory, I do intend to change this.
 
 To run the docker image with 2 nodes that will each have a db e.g. node-1.sqlite, node-2.sqlite where the temporary txpool and all
