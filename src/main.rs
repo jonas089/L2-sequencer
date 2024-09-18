@@ -118,7 +118,7 @@ async fn synchronization_loop(database: Arc<RwLock<ServerState>>) {
     let next_height = state_lock.block_state.height - 1;
 
     #[cfg(feature = "sqlite")]
-    let next_height = state_lock.block_state.current_block_height() - 1;
+    let next_height = state_lock.block_state.current_block_height();
 
     let gossipper = Gossipper {
         peers: PEERS.to_vec(),
