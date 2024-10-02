@@ -101,10 +101,14 @@ async fn synchronization_loop_with_finality(database: Arc<RwLock<ServerState>>) 
                 };
                 if peer_height.is_none() {
                     continue;
+                } else {
+                    let mut peer_height_unwrapped = peer_height.unwrap();
+                    while peer_height_unwrapped >= next_height {
+                        // get & store peer block
+                        // todo: implement a finality threshold
+                        peer_height_unwrapped -= 1;
+                    }
                 }
-                // else if peer_height >= next_height:
-                // for i in next_height..peer_height:
-                // - get & store
             }
             _ => {}
         }

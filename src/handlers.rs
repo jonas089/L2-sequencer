@@ -9,7 +9,7 @@ use colored::Colorize;
 use k256::ecdsa::signature::{SignerMut, Verifier};
 use k256::ecdsa::Signature;
 use patricia_trie::{
-    insert_leaf,
+    check_leaf, insert_leaf,
     store::types::{Hashable, Leaf, Node},
 };
 use reqwest::Response;
@@ -27,7 +27,7 @@ pub async fn handle_synchronization_response(
     println!("[Info] Querying Block: {}", &next_height);
     let block_serialized = response.text().await.unwrap();
     if block_serialized != "[Warning] Requested Block that does not exist" {
-        let block: Block = serde_json::from_str(&block_serialized).unwrap();
+        let mut block: Block = serde_json::from_str(&block_serialized).unwrap();
         #[cfg(not(feature = "sqlite"))]
         state_lock
             .block_state
@@ -39,22 +39,8 @@ pub async fn handle_synchronization_response(
             .insert_block(next_height, block.clone());
 
         // insert transactions into the trie
-        let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
-        let transactions = &block.transactions;
-        for transaction in transactions {
-            let mut leaf = Leaf::new(Vec::new(), Some(transaction.data.clone()));
-            leaf.hash();
-            leaf.key = leaf
-                .hash
-                .clone()
-                .unwrap()
-                .iter()
-                .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
-                .collect();
-            leaf.hash();
-            let new_root = insert_leaf(&mut state_lock.merkle_trie_state, &mut leaf, root_node);
-            root_node = Node::Root(new_root);
-        }
+        let root_node = Node::Root(state_lock.merkle_trie_root.clone());
+        let root_node = handle_transaction_batch(state_lock, &mut block, root_node);
         // update trie root
         state_lock.merkle_trie_root = root_node.unwrap_as_root();
         state_lock.consensus_state.reinitialize();
@@ -159,23 +145,8 @@ pub async fn handle_block_proposal(
             .block_state
             .insert_block(proposal.height, proposal.clone());
         // insert transactions into the trie
-        let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
-        for transaction in &proposal.transactions {
-            let mut leaf = Leaf::new(Vec::new(), Some(transaction.data.clone()));
-            leaf.hash();
-            leaf.key = leaf
-                .hash
-                .clone()
-                .unwrap()
-                .iter()
-                .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
-                .collect();
-            leaf.hash();
-            todo!("check if leaf exists and insert otherwise");
-            // currently duplicate insertion will cause an error
-            let new_root = insert_leaf(&mut state_lock.merkle_trie_state, &mut leaf, root_node);
-            root_node = Node::Root(new_root);
-        }
+        let root_node = Node::Root(state_lock.merkle_trie_root.clone());
+        let root_node = handle_transaction_batch(state_lock, proposal, root_node);
         // update in-memory trie root
         state_lock.merkle_trie_root = root_node.unwrap_as_root();
         println!(
@@ -235,4 +206,32 @@ pub async fn handle_block_proposal(
         );
     }
     None
+}
+
+fn handle_transaction_batch(
+    state_lock: &mut tokio::sync::RwLockWriteGuard<'_, ServerState>,
+    block: &mut Block,
+    mut root_node: Node,
+) -> Node {
+    for transaction in &block.transactions {
+        let mut leaf = Leaf::new(Vec::new(), Some(transaction.data.clone()));
+        leaf.hash();
+        leaf.key = leaf
+            .hash
+            .clone()
+            .unwrap()
+            .iter()
+            .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1))
+            .collect();
+        leaf.hash();
+        if !check_leaf(
+            &mut state_lock.merkle_trie_state,
+            leaf.clone(),
+            root_node.clone(),
+        ) {
+            let new_root = insert_leaf(&mut state_lock.merkle_trie_state, &mut leaf, root_node);
+            root_node = Node::Root(new_root);
+        }
+    }
+    root_node
 }
