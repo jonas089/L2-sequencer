@@ -1,7 +1,8 @@
 # Distributed L2 Sequencer
 Read the full [Whitepaper](https://github.com/jonas089/PoRD/blob/master/whitepaper%2Fsequencer.md)
 
-:green_heart: Support the Dev on [Ethereum](https://etherscan.io/address/0x595208520ec81234095bFe62eb52B4fc2A7e4928) :green_heart:
+> [!WARNING]  
+> This is a research project and hasn't been audited. Use at your own risk.
 
 # Recommended: Run an sqlite Network Automatically: Docker Support
 I began taking this passion project quite seriously, so I added an SQLite DB to store Blocks and Transactions.
