@@ -1,5 +1,5 @@
 # Distributed L2 Sequencer
-Read the full [Whitepaper](https://github.com/jonas089/PoRD/blob/master/whitepaper%2Fsequencer.md)
+Read the full [Litepaper](https://github.com/jonas089/PoRD/blob/master/whitepaper%2Fsequencer.md)
 
 > [!WARNING]  
 > This is a research project and hasn't been audited. Use at your own risk.
