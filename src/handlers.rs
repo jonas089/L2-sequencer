@@ -140,9 +140,14 @@ pub async fn handle_block_proposal(
 
     #[cfg(not(feature = "sqlite"))]
     let previous_block_height = state_lock.block_state.height - 1;
+    
     #[cfg(feature = "sqlite")]
     let previous_block_height = state_lock.block_state.current_block_height() - 1;
 
+    if proposal.height != previous_block_height + 1{
+        return Some(error_response);
+    }
+    
     if commitment_count >= CONSENSUS_THRESHOLD {
         println!(
             "{}",
