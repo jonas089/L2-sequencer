@@ -1,7 +1,7 @@
 # Distributed L2 Sequencer
 Read the full [Litepaper](https://github.com/jonas089/PoRD/blob/master/whitepaper%2Fsequencer.md)
 
-> [!INFO]
+> [!NOTE]
 > I am not done with this project and will definitely return to address finality and improve the synchronization logic. Due to my job I currently don't have capacity but that will change!
 
 
