@@ -1,6 +1,10 @@
 # Distributed L2 Sequencer
 Read the full [Litepaper](https://github.com/jonas089/PoRD/blob/master/whitepaper%2Fsequencer.md)
 
+> [!INFO]
+> I am not done with this project and will definitely return to address finality and improve the synchronization logic. Due to my job I currently don't have capacity but that will change!
+
+
 > [!WARNING]  
 > This is a research project and hasn't been audited. Use at your own risk.
 
