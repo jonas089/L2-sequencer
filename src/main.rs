@@ -63,55 +63,6 @@ struct ServerState {
     local_gossipper: Gossipper,
 }
 
-#[allow(unused)]
-async fn synchronization_loop_with_finality(database: Arc<RwLock<ServerState>>) {
-    let mut state_lock = database.write().await;
-    #[cfg(not(feature = "sqlite"))]
-    let next_height = state_lock.block_state.height;
-
-    #[cfg(feature = "sqlite")]
-    let next_height = state_lock.block_state.current_block_height();
-
-    let gossipper = Gossipper {
-        peers: PEERS.to_vec(),
-        client: Client::new(),
-    };
-
-    for peer in gossipper.peers {
-        // todo: make this generic for n amount of nodes
-        let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
-        if docker_skip_self(&this_node, &peer) {
-            continue;
-        }
-        let response: Option<Response> = match gossipper
-            .client
-            .get(format!("http://{}{}", &peer, "/get/height"))
-            .timeout(Duration::from_secs(30))
-            .send()
-            .await
-        {
-            Ok(response) => Some(response),
-            Err(_) => None,
-        };
-        match response {
-            Some(response) => {
-                let peer_height: Option<u32> = match response.text().await {
-                    Ok(height) => Some(serde_json::from_str(&height).unwrap()),
-                    Err(_) => None,
-                };
-                if peer_height.is_none() {
-                    continue;
-                }
-                // else if peer_height >= next_height:
-                // for i in next_height..peer_height:
-                // - get & store
-            }
-            _ => {}
-        }
-    }
-}
-
-#[deprecated]
 async fn synchronization_loop(database: Arc<RwLock<ServerState>>) {
     let mut state_lock = database.write().await;
     #[cfg(not(feature = "sqlite"))]
