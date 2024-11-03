@@ -100,6 +100,3 @@ The merkle proof can be verified against the Root Hash of the Trie that it was r
 ```
 
 Note that `verify_merkle_proof` will revert if the merkle proof is invalid / doesn't sum up to the provided Trie Root.
-
-Latest Prototype [release v0.0.1](https://github.com/jonas089/L2-sequencer/blob/proto-0.0.1/README.md)
-
