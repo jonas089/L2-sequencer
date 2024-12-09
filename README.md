@@ -1,14 +1,13 @@
-# Distributed L2 Sequencer
-Read the full [Litepaper](https://github.com/jonas089/PoRD/blob/master/whitepaper%2Fsequencer.md)
+# Distributed Transaction Sequencer
+Read the full [Litepaper] - work in progress!(https://github.com/jonas089/PoRD/blob/master/whitepaper%2Fsequencer.md)
 
-> [!NOTE]
-> I am not done with this project and will definitely return to address finality and improve the synchronization logic. Due to my job I currently don't have capacity but that will change!
+> [!Warning]
+> The design of this sequencer has not been finalized!
+> This is a research project and hasn't been audited.
+> Use at your own risk.
 
 
-> [!WARNING]  
-> This is a research project and hasn't been audited. Use at your own risk.
-
-# Recommended: Run an sqlite Network Automatically: Docker Support
+# Recommended: Run a local network of 4 Nodes with Docker
 I began taking this passion project quite seriously, so I added an SQLite DB to store Blocks and Transactions.
 Transactions are still read as a single chunk so the txpool for each Block must fit in memory, I do intend to change this.
 
@@ -45,6 +44,8 @@ To view a Block when running the example setup, request `127.0.0.1:8080/get/bloc
 Whenever a Block is stored, all transactions in that block are inserted into the custom [Merkle Patricia Trie](https://github.com/jonas089/jonas089-trie).
 
 My Trie library supports merkle proofs which will be exposed by the sequencer API - inclusion can be proven for individual transactions.
+
+I will likely add support for the eth-trie crate soon, but for this project I chose to be extra fancy and write a custom Trie from scratch.
 
 Each Transaction has a `Key` that is unique. The `Key` is generated like this:
 
