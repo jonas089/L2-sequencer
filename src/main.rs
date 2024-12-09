@@ -24,36 +24,28 @@ use consensus::logic::{current_round, evaluate_commitment, get_committing_valida
 use gossipper::{docker_skip_self, Gossipper};
 use handlers::handle_synchronization_response;
 use k256::ecdsa::{signature::SignerMut, Signature};
-
-#[cfg(not(feature = "sqlite"))]
-use patricia_trie::store::{db::TrieDB as MerkleTrieDB, types::Root};
-#[cfg(feature = "sqlite")]
-use patricia_trie::{
-    insert_leaf,
-    store::{
-        db::sql::TrieDB as MerkleTrieDB,
-        types::{Hashable, Leaf, Node, Root},
-    },
-};
-
 use prover::generate_random_number;
 use reqwest::{Client, Response};
-#[cfg(not(feature = "sqlite"))]
-use state::server::{InMemoryBlockStore, InMemoryTransactionPool};
 
-#[cfg(feature = "sqlite")]
-use patricia_trie::store::db::{sql, Database};
 use state::server::{BlockStore, InMemoryConsensus, TransactionPool};
-#[cfg(feature = "sqlite")]
-use state::server::{SqLiteBlockStore, SqLiteTransactionPool};
 use std::{
-    collections::HashMap,
     env,
     sync::Arc,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tokio::sync::RwLock;
 use types::{Block, ConsensusCommitment};
+#[cfg(feature = "sqlite")]
+use {
+    patricia_trie::store::{db::sql::TrieDB as MerkleTrieDB, types::Root},
+    state::server::{SqLiteBlockStore, SqLiteTransactionPool},
+};
+#[cfg(not(feature = "sqlite"))]
+use {
+    patricia_trie::store::{db::TrieDB as MerkleTrieDB, types::Root},
+    state::server::{InMemoryBlockStore, InMemoryTransactionPool},
+    std::collections::HashMap,
+};
 struct ServerState {
     block_state: BlockStore,
     pool_state: TransactionPool,

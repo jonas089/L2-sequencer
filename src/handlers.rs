@@ -1,6 +1,8 @@
 use crate::config::consensus::CONSENSUS_THRESHOLD;
 #[cfg(not(feature = "sqlite"))]
 use crate::state::server::InMemoryBlockStore;
+#[cfg(feature = "sqlite")]
+use crate::state::server::SqLiteBlockStore;
 use crate::types::BlockCommitment;
 use crate::types::GenericSignature;
 use crate::{crypto::ecdsa::deserialize_vk, types::Block};
@@ -13,11 +15,6 @@ use patricia_trie::{
     store::types::{Hashable, Leaf, Node},
 };
 use reqwest::Response;
-
-#[cfg(feature = "sqlite")]
-use crate::state::server::{BlockStore, SqLiteBlockStore, SqLiteTransactionPool};
-#[cfg(feature = "sqlite")]
-use patricia_trie::store::db::{sql, Database};
 
 pub async fn handle_synchronization_response(
     state_lock: &mut tokio::sync::RwLockWriteGuard<'_, ServerState>,
@@ -140,14 +137,14 @@ pub async fn handle_block_proposal(
 
     #[cfg(not(feature = "sqlite"))]
     let previous_block_height = state_lock.block_state.height - 1;
-    
+
     #[cfg(feature = "sqlite")]
     let previous_block_height = state_lock.block_state.current_block_height() - 1;
 
-    if proposal.height != previous_block_height + 1{
+    if proposal.height != previous_block_height + 1 {
         return Some(error_response);
     }
-    
+
     if commitment_count >= CONSENSUS_THRESHOLD {
         println!(
             "{}",
@@ -164,7 +161,7 @@ pub async fn handle_block_proposal(
             .block_state
             .insert_block(proposal.height, proposal.clone());
         // insert transactions into the trie
-        let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
+        let root_node = Node::Root(state_lock.merkle_trie_root.clone());
         for transaction in &proposal.transactions {
             let mut leaf = Leaf::new(Vec::new(), Some(transaction.data.clone()));
             leaf.hash();

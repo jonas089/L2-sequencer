@@ -1,7 +1,3 @@
-use k256::ecdsa::{SigningKey, VerifyingKey};
-#[cfg(feature = "sqlite")]
-use rusqlite::{params, Connection};
-
 use crate::{
     config::consensus::{
         v1_sk_deserialized, v1_vk_deserialized, v2_sk_deserialized, v3_sk_deserialized,
@@ -9,7 +5,12 @@ use crate::{
     },
     types::{Block, ConsensusCommitment, Timestamp, Transaction},
 };
-use std::{collections::HashMap, env};
+use k256::ecdsa::{SigningKey, VerifyingKey};
+#[cfg(feature = "sqlite")]
+use rusqlite::{params, Connection};
+#[cfg(not(feature = "sqlite"))]
+use std::collections::HashMap;
+use std::env;
 
 pub trait InMemoryBlockStore {
     fn empty() -> Self;
@@ -281,7 +282,6 @@ impl InMemoryConsensus {
     pub fn empty_with_default_validators() -> InMemoryConsensus {
         use crate::config::consensus::v2_vk_deserialized;
         let local_validator_test_id = env::var("LOCAL_VALIDATOR").unwrap_or(0.to_string());
-
         let local_validator = if local_validator_test_id == "0" {
             (v1_sk_deserialized(), v1_vk_deserialized())
         } else if local_validator_test_id == "1" {
