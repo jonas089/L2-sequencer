@@ -29,12 +29,10 @@ pub async fn handle_synchronization_response(
         state_lock
             .block_state
             .insert_block(next_height, block.clone());
-
         #[cfg(feature = "sqlite")]
         state_lock
             .block_state
             .insert_block(next_height, block.clone());
-
         // insert transactions into the trie
         let mut root_node = Node::Root(state_lock.merkle_trie_root.clone());
         let transactions = &block.transactions;
@@ -69,7 +67,6 @@ pub async fn handle_synchronization_response(
         );
     }
 }
-
 pub async fn handle_block_proposal(
     state_lock: &mut tokio::sync::RwLockWriteGuard<'_, ServerState>,
     proposal: &mut Block,
@@ -134,28 +131,22 @@ pub async fn handle_block_proposal(
         "[Info] Commitment count for proposal: {}",
         &commitment_count
     );
-
     #[cfg(not(feature = "sqlite"))]
     let previous_block_height = state_lock.block_state.height - 1;
-
     #[cfg(feature = "sqlite")]
     let previous_block_height = state_lock.block_state.current_block_height() - 1;
-
     if proposal.height != previous_block_height + 1 {
         return Some(error_response);
     }
-
     if commitment_count >= CONSENSUS_THRESHOLD {
         println!(
             "{}",
             format_args!("{} Received Valid Block", "[Info]".green())
         );
-
         #[cfg(not(feature = "sqlite"))]
         state_lock
             .block_state
             .insert_block(proposal.height - 1, proposal.clone());
-
         #[cfg(feature = "sqlite")]
         state_lock
             .block_state

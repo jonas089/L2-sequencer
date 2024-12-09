@@ -29,4 +29,5 @@ rusqlite = { version = "0.32", optional = true }
 
 
 [features]
+mock-net = []
 sqlite = ["rusqlite", "patricia-trie/sqlite"]

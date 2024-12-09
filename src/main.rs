@@ -21,12 +21,9 @@ use config::{
     network::PEERS,
 };
 use consensus::logic::{current_round, evaluate_commitment, get_committing_validator};
-use gossipper::{docker_skip_self, Gossipper};
-use handlers::handle_synchronization_response;
 use k256::ecdsa::{signature::SignerMut, Signature};
 use prover::generate_random_number;
-use reqwest::{Client, Response};
-
+use reqwest::Client;
 use state::server::{BlockStore, InMemoryConsensus, TransactionPool};
 use std::{
     env,
@@ -35,6 +32,12 @@ use std::{
 };
 use tokio::sync::RwLock;
 use types::{Block, ConsensusCommitment};
+#[allow(unused)]
+use {
+    gossipper::{docker_skip_self, Gossipper},
+    handlers::handle_synchronization_response,
+    reqwest::Response,
+};
 #[cfg(feature = "sqlite")]
 use {
     patricia_trie::store::{db::sql::TrieDB as MerkleTrieDB, types::Root},
@@ -46,6 +49,7 @@ use {
     state::server::{InMemoryBlockStore, InMemoryTransactionPool},
     std::collections::HashMap,
 };
+
 struct ServerState {
     block_state: BlockStore,
     pool_state: TransactionPool,
@@ -55,60 +59,62 @@ struct ServerState {
     local_gossipper: Gossipper,
 }
 
+// currently only supports mock net
+#[allow(unused)]
 async fn synchronization_loop(database: Arc<RwLock<ServerState>>) {
-    let mut state_lock = database.write().await;
-    #[cfg(not(feature = "sqlite"))]
-    let next_height = state_lock.block_state.height - 1;
-
-    #[cfg(feature = "sqlite")]
-    let next_height = state_lock.block_state.current_block_height();
-
-    let gossipper = Gossipper {
-        peers: PEERS.to_vec(),
-        client: Client::new(),
-    };
-
-    for peer in gossipper.peers {
-        // todo: make this generic for n amount of nodes
-        let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
-        if docker_skip_self(&this_node, &peer) {
-            continue;
-        }
-        let response: Option<Response> = match gossipper
-            .client
-            .get(format!("http://{}{}{}", &peer, "/get/block/", next_height))
-            .timeout(Duration::from_secs(15))
-            .send()
-            .await
-        {
-            Ok(response) => Some(response),
-            Err(_) => None,
+    #[cfg(feature = "mock-net")]
+    {
+        let mut state_lock = database.write().await;
+        #[cfg(not(feature = "sqlite"))]
+        let next_height = state_lock.block_state.height - 1;
+        #[cfg(feature = "sqlite")]
+        let next_height = state_lock.block_state.current_block_height();
+        let gossipper = Gossipper {
+            peers: PEERS.to_vec(),
+            client: Client::new(),
         };
-        match response {
-            Some(response) => {
-                handle_synchronization_response(&mut state_lock, response, next_height).await;
+        for peer in gossipper.peers {
+            // todo: make this generic for n amount of nodes
+            let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
+            if docker_skip_self(&this_node, &peer) {
+                continue;
             }
-            _ => {}
+            let response: Option<Response> = match gossipper
+                .client
+                .get(format!("http://{}{}{}", &peer, "/get/block/", next_height))
+                .timeout(Duration::from_secs(15))
+                .send()
+                .await
+            {
+                Ok(response) => Some(response),
+                Err(_) => None,
+            };
+            match response {
+                Some(response) => {
+                    handle_synchronization_response(&mut state_lock, response, next_height).await;
+                }
+                _ => {}
+            }
         }
     }
+    #[cfg(not(feature = "mock-net"))]
+    {
+        todo!("Implement mainnet synchronization!");
+    }
 }
-
 async fn consensus_loop(state: Arc<RwLock<ServerState>>) {
     let unix_timestamp = get_current_time();
     let mut state_lock = state.write().await;
-
     #[cfg(not(feature = "sqlite"))]
     let last_block_unix_timestamp = state_lock
         .block_state
         .get_block_by_height(state_lock.block_state.height - 1)
         .timestamp;
-
     #[cfg(feature = "sqlite")]
     let last_block_unix_timestamp = state_lock
         .block_state
         .get_block_by_height(state_lock.block_state.current_block_height() - 1)
         .timestamp;
-
     // check if clearing phase of new consensus round
     if unix_timestamp
         <= last_block_unix_timestamp
@@ -118,23 +124,18 @@ async fn consensus_loop(state: Arc<RwLock<ServerState>>) {
         state_lock.consensus_state.reinitialize();
         return;
     }
-
     let committing_validator = get_committing_validator(
         last_block_unix_timestamp,
         state_lock.consensus_state.validators.clone(),
     );
-
     println!(
         "[Info] Current round: {}",
         current_round(last_block_unix_timestamp)
     );
-
     #[cfg(not(feature = "sqlite"))]
     let previous_block_height = state_lock.block_state.height - 1;
-
     #[cfg(feature = "sqlite")]
     let previous_block_height = state_lock.block_state.current_block_height() - 1;
-
     if state_lock.consensus_state.local_validator == committing_validator
         && !state_lock.consensus_state.committed
     {
@@ -163,11 +164,9 @@ async fn consensus_loop(state: Arc<RwLock<ServerState>>) {
         state_lock.consensus_state.round_winner = Some(proposing_validator);
         state_lock.consensus_state.committed = true;
     }
-
     if state_lock.consensus_state.round_winner.is_none() {
         return;
     }
-
     let proposing_validator = state_lock.consensus_state.round_winner.unwrap();
     #[cfg(not(feature = "sqlite"))]
     let transactions = state_lock
@@ -203,7 +202,6 @@ async fn consensus_loop(state: Arc<RwLock<ServerState>>) {
         state_lock.pool_state.reinitialize()
     }
 }
-
 #[tokio::main]
 async fn main() {
     println!(
@@ -299,7 +297,6 @@ async fn main() {
             }
         }
     });
-
     let api_task = tokio::spawn({
         async move {
             let api = Router::new()
@@ -321,7 +318,6 @@ async fn main() {
             axum::serve(listener, api).await.unwrap();
         }
     });
-
     tokio::select! {
         sync_task_res = synchronization_task => {
             match sync_task_res {
@@ -343,7 +339,6 @@ async fn main() {
         }
     }
 }
-
 pub fn get_current_time() -> u32 {
     let start = SystemTime::now();
     let since_the_epoch = start

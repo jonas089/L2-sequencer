@@ -30,15 +30,12 @@ impl Default for Keypair {
         Self::new()
     }
 }
-
 pub fn deserialize_sk(sk_serialized: &[u8]) -> SigningKey {
     SigningKey::from_bytes(sk_serialized.into()).unwrap()
 }
-
 pub fn deserialize_vk(vk_serialized: &[u8]) -> VerifyingKey {
     VerifyingKey::from_sec1_bytes(vk_serialized).unwrap()
 }
-
 #[test]
 fn test_serialize_and_deserialize_sk() {
     let keypair = Keypair::new();
@@ -66,7 +63,6 @@ fn test_generate_and_verify_ecdsa_signature_using_secp256k1_curve() {
         .verify(&arbitrary_data, &signature)
         .expect("Failed to verify signature");
 }
-
 #[test]
 fn test_generate_validator_keys_for_basic_e2e_setup() {
     let v1_keypair = Keypair::new();

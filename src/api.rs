@@ -2,14 +2,6 @@
 use crate::state::server::{InMemoryBlockStore, InMemoryTransactionPool};
 #[cfg(feature = "sqlite")]
 use crate::state::server::{SqLiteBlockStore, SqLiteTransactionPool};
-use axum::{extract::Path, Extension, Json};
-use colored::Colorize;
-use k256::ecdsa::{signature::Verifier, Signature};
-use l2_sequencer::config::consensus::ROUND_DURATION;
-use patricia_trie::store::types::Node;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-
 use crate::{
     consensus::logic::{current_round, evaluate_commitment, get_committing_validator},
     crypto::ecdsa::deserialize_vk,
@@ -17,7 +9,13 @@ use crate::{
     types::{Block, ConsensusCommitment, Transaction},
     ServerState,
 };
-
+use axum::{extract::Path, Extension, Json};
+use colored::Colorize;
+use k256::ecdsa::{signature::Verifier, Signature};
+use l2_sequencer::config::consensus::ROUND_DURATION;
+use patricia_trie::store::types::Node;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 pub async fn schedule(
     Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
     Json(transaction): Json<Transaction>,
@@ -28,7 +26,6 @@ pub async fn schedule(
     state.pool_state.insert_transaction(transaction);
     success_response
 }
-
 pub async fn commit(
     Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
     Json(commitment): Json<ConsensusCommitment>,
@@ -40,7 +37,6 @@ pub async fn commit(
         .block_state
         .get_block_by_height(state_lock.block_state.height - 1)
         .timestamp;
-
     #[cfg(feature = "sqlite")]
     let last_block_unix_timestamp = state_lock
         .block_state
@@ -61,7 +57,6 @@ pub async fn commit(
     }
     success_response
 }
-
 pub async fn propose(
     Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
     Json(mut proposal): Json<Block>,
@@ -72,14 +67,12 @@ pub async fn propose(
         .block_state
         .get_block_by_height(state_lock.block_state.height - 1)
         .timestamp;
-
     #[cfg(feature = "sqlite")]
     let last_block_unix_timestamp = state_lock
         .block_state
         .get_block_by_height(state_lock.block_state.current_block_height() - 1)
         .timestamp;
     let error_response = format!("Block was rejected: {:?}", &proposal).to_string();
-
     let round = current_round(last_block_unix_timestamp);
     if proposal.timestamp < last_block_unix_timestamp + ((round - 1) * (ROUND_DURATION)) {
         println!(
@@ -88,12 +81,10 @@ pub async fn propose(
         );
         return error_response;
     };
-
     let block_signature = proposal
         .signature
         .clone()
         .expect("Block has not been signed!");
-
     if let Some(round_winner) = state_lock.consensus_state.round_winner {
         let signature_deserialized = Signature::from_slice(&block_signature).unwrap();
         match round_winner.verify(&proposal.to_bytes(), &signature_deserialized) {
@@ -121,7 +112,6 @@ pub async fn propose(
         "[Warning] Awaiting consensus evaluation".to_string()
     }
 }
-
 pub async fn merkle_proof(
     Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
     Json(key): Json<Vec<u8>>,
@@ -138,28 +128,23 @@ pub async fn merkle_proof(
         None => "[Err] Failed to generate Merkle Proof for Transaction".to_string(),
     }
 }
-
 pub async fn get_pool(Extension(shared_state): Extension<Arc<RwLock<ServerState>>>) -> String {
     let state = shared_state.read().await;
-
     #[cfg(not(feature = "sqlite"))]
     {
         format!("{:?}", state.pool_state.transactions)
     }
-
     #[cfg(feature = "sqlite")]
     {
         format!("{:?}", state.pool_state.get_all_transactions())
     }
 }
-
 pub async fn get_commitments(
     Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
 ) -> String {
     let state_lock = shared_state.read().await;
     format!("{:?}", state_lock.consensus_state.commitments)
 }
-
 pub async fn get_block(
     Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
     Path(height): Path<u32>,
@@ -171,10 +156,8 @@ pub async fn get_block(
     );
     #[cfg(not(feature = "sqlite"))]
     let previous_block_height = state_lock.block_state.height - 1;
-
     #[cfg(feature = "sqlite")]
     let previous_block_height = state_lock.block_state.current_block_height();
-
     if previous_block_height < height + 1 {
         "[Warning] Requested Block that does not exist".to_string()
     } else {
@@ -184,7 +167,6 @@ pub async fn get_block(
         }
     }
 }
-
 pub async fn get_state_root_hash(
     Extension(shared_state): Extension<Arc<RwLock<ServerState>>>,
 ) -> String {
@@ -194,12 +176,10 @@ pub async fn get_state_root_hash(
         Err(e) => e.to_string(),
     }
 }
-
 pub async fn get_height(Extension(shared_state): Extension<Arc<RwLock<ServerState>>>) -> String {
     let state_lock = shared_state.read().await;
     #[cfg(not(feature = "sqlite"))]
     let previous_block_height = state_lock.block_state.height - 1;
-
     #[cfg(feature = "sqlite")]
     let previous_block_height = state_lock.block_state.current_block_height();
     serde_json::to_string(&previous_block_height).unwrap()

@@ -1,5 +1,4 @@
 use std::time::{SystemTime, UNIX_EPOCH};
-
 pub mod config;
 pub mod consensus;
 pub mod crypto;

@@ -1,19 +1,14 @@
-use std::{env, time::Duration};
-
+use crate::types::ConsensusCommitment;
 use crate::{consensus::logic::current_round, types::Block};
 use colored::Colorize;
 use reqwest::{Client, Response};
+use std::{env, time::Duration};
 use tokio::time::sleep;
-
-use crate::types::ConsensusCommitment;
-
 pub type Peer = &'static str;
-
 pub struct Gossipper {
     pub peers: Vec<Peer>,
     pub client: Client,
 }
-
 async fn send_proposal(client: Client, peer: Peer, json_block: String) -> Option<Response> {
     let response: Option<Response> = match client
         .post(format!("http://{}{}", &peer, "/propose"))
@@ -28,20 +23,16 @@ async fn send_proposal(client: Client, peer: Peer, json_block: String) -> Option
     };
     response
 }
-
 impl Gossipper {
     pub async fn gossip_pending_block(&self, block: Block, last_block_unix_timestamp: u32) {
         for peer in self.peers.clone() {
             let client_clone = self.client.clone();
             let peer_clone = peer;
             let json_block: String = serde_json::to_string(&block).unwrap();
-
-            // todo: revisit
             let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
             if docker_skip_self(&this_node, peer) {
                 continue;
             };
-
             tokio::spawn(async move {
                 let start_round = current_round(last_block_unix_timestamp);
                 let round = current_round(last_block_unix_timestamp);
@@ -77,13 +68,10 @@ impl Gossipper {
             let client_clone = self.client.clone();
             let peer_clone = peer;
             let json_commitment_clone: String = json_commitment.clone();
-
-            // todo: revisit
             let this_node = env::var("API_HOST_WITH_PORT").unwrap_or("0.0.0.0:8080".to_string());
             if docker_skip_self(&this_node, peer) {
                 continue;
             };
-
             tokio::spawn(async move {
                 match client_clone
                     .post(format!("http://{}{}", &peer_clone, "/commit"))
@@ -108,7 +96,6 @@ impl Gossipper {
         }
     }
 }
-
 pub fn docker_skip_self(this_node: &str, peer: &str) -> bool {
     if this_node == "0.0.0.0:8080" && peer == "rust-node-1:8080" {
         return true;

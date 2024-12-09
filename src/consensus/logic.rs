@@ -4,7 +4,6 @@ use k256::ecdsa::VerifyingKey;
 use num_bigint::BigInt;
 use num_traits::ToPrimitive;
 use zk_logic::{random_bytes_to_int, types::CircuitOutputs};
-
 pub fn evaluate_commitment(
     commitment: ConsensusCommitment,
     validators: Vec<VerifyingKey>,
@@ -15,7 +14,6 @@ pub fn evaluate_commitment(
         validators,
     )
 }
-
 pub fn get_committing_validator(
     last_block_unix_timestamp: u32,
     validators: Vec<VerifyingKey>,
@@ -24,14 +22,12 @@ pub fn get_committing_validator(
     // returns the current validator
     validators[round as usize % (validators.len() - 1) as usize]
 }
-
 fn choose_winner(random_commitment: BigInt, validators: Vec<VerifyingKey>) -> VerifyingKey {
     let index = (random_commitment % (validators.len() - 1))
         .to_u32()
         .unwrap();
     validators[index as usize]
 }
-
 pub fn current_round(last_block_unix_timestamp: u32) -> u32 {
     (get_current_time() - last_block_unix_timestamp) / (ROUND_DURATION) + 1
 }
