@@ -1,5 +1,5 @@
 # Distributed Transaction Sequencer
-Read the full [Litepaper] - work in progress!(https://github.com/jonas089/PoRD/blob/master/whitepaper%2Fsequencer.md)
+Read the full [Litepaper] progress!(https://github.com/jonas089/PoRD/blob/master/whitepaper%2Fsequencer.md)
 
 > [!Warning]
 > The design of this sequencer has not been finalized!
